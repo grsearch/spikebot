@@ -38,6 +38,7 @@ class BinanceREST:
         self._weight_used = 0
         self._leverage_set = set()  # 已设置杠杆的symbol
         self._margin_type_set = set()
+        self._no_1s_symbols = set()  # 不支持1s K线的symbol，自动降级到1m
 
     async def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -88,12 +89,13 @@ class BinanceREST:
 
                     data = await resp.json()
                     if resp.status != 200:
-                        # 过滤一些"无害"的错误
                         code = data.get("code", 0) if isinstance(data, dict) else 0
-                        # -4046: No need to change margin type (already set)
-                        # -4059: No need to change position mode
-                        # -4028: Leverage reduction is not supported in Isolated Mode with open positions
+                        # 无害错误：直接返回，不重试
                         if code in (-4046, -4059):
+                            return data
+                        # 参数错误（如不支持的interval）：直接返回，不重试
+                        if resp.status == 400:
+                            logger.warning(f"API 400: {data}")
                             return data
                         logger.error(f"API error {resp.status}: {data}")
                         last_err = data
@@ -115,23 +117,34 @@ class BinanceREST:
     # ── K线 ──────────────────────────────────────────────
     async def get_klines(self, symbol: str, interval: str = "1s", limit: int = 120):
         """
-        合约K线接口: /fapi/v1/klines
-        注意：合约支持的最小interval是 '1m'，但部分对符号支持 '1s'
-        如果 1s 不支持，自动降级到 1m（虽然影响策略，但至少能跑）
+        合约K线接口。
+        币安期货 /fapi/v1/klines 支持 1s interval（2023年后上线）。
+        若某个symbol返回 -1120 Invalid interval，说明该symbol不支持1s，
+        自动降级到1m并缓存，避免重复报错。
         """
-        try:
-            data = await self._request("GET", "/fapi/v1/klines", {
-                "symbol": symbol, "interval": interval, "limit": limit
-            })
-        except Exception as e:
-            # 合约K线1s不支持时降级
-            if "1s" in str(interval):
-                logger.warning(f"{symbol} 合约不支持1s K线，降级到1m")
+        # 检查是否已知该symbol不支持1s
+        if interval == "1s" and symbol in self._no_1s_symbols:
+            interval = "1m"
+
+        data = await self._request("GET", "/fapi/v1/klines", {
+            "symbol": symbol, "interval": interval, "limit": limit
+        })
+
+        # _request在API错误时返回dict而不是抛异常，需要手动检查
+        if isinstance(data, dict) and data.get("code") == -1120:
+            if interval == "1s":
+                logger.warning(f"{symbol} 不支持1s K线，降级到1m并缓存")
+                self._no_1s_symbols.add(symbol)
                 data = await self._request("GET", "/fapi/v1/klines", {
                     "symbol": symbol, "interval": "1m", "limit": limit
                 })
             else:
-                raise
+                logger.error(f"{symbol} K线接口错误: {data}")
+                return []
+
+        if not isinstance(data, list):
+            logger.error(f"{symbol} K线返回异常: {data}")
+            return []
         klines = []
         for k in data:
             klines.append({
