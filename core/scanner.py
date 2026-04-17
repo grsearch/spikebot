@@ -2,7 +2,7 @@
 多币种扫描器
 - single : 只监控 config.SYMBOL
 - list   : 监控 config.SYMBOL_LIST
-- auto   : 每15分钟查 Binance 24h涨幅榜，按|净涨幅|+成交量双条件筛选
+- auto   : 每N分钟查 Binance 合约 24h涨幅榜，只筛上涨且成交量达标的币
 """
 import logging
 import time
@@ -10,7 +10,6 @@ from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
-# 稳定币/计价币黑名单
 _STABLES = {"USDC","BUSD","TUSD","USDP","FDUSD","DAI","USDD",
             "SUSD","FRAX","LUSD","EUR","GBP","AUD","BRL"}
 
@@ -26,13 +25,10 @@ class SymbolScanner:
 
     async def get_symbols(self) -> List[str]:
         mode = getattr(self.cfg, "SCAN_MODE", "single")
-
         if mode == "single":
             return [self.cfg.SYMBOL]
-
         if mode == "list":
             return list(self.cfg.SYMBOL_LIST)
-
         if mode == "auto":
             interval = getattr(self.cfg, "AUTO_REFRESH_SEC", 900)
             now = time.time()
@@ -41,19 +37,18 @@ class SymbolScanner:
                 self._last_refresh = now
                 self.last_scan_time = now
             return self._symbols
-
         return [self.cfg.SYMBOL]
 
     async def _scan_gainers(self) -> List[str]:
         """
         查 Binance 合约 /fapi/v1/ticker/24hr
-        筛选条件：
+        筛选条件（合约市场，非现货）：
           1. USDT 计价合约
           2. 非稳定币 / 非杠杆代币
-          3. |24h净涨幅| >= AUTO_MIN_GAIN_PCT  （涨跌都算）
+          3. 24h净涨幅 >= +AUTO_MIN_GAIN_PCT  （只要上涨，不要下跌）
           4. 24h成交额 >= AUTO_MIN_VOLUME_USDT
           5. 价格 >= AUTO_MIN_PRICE
-        按 |净涨幅| 从高到低，取前 AUTO_MAX_SYMBOLS 个
+        按合约净涨幅从高到低排序，取前 AUTO_MAX_SYMBOLS 个
         """
         min_gain = getattr(self.cfg, "AUTO_MIN_GAIN_PCT",    15.0)
         min_vol  = getattr(self.cfg, "AUTO_MIN_VOLUME_USDT", 10_000_000)
@@ -81,7 +76,7 @@ class SymbolScanner:
             if any(base.endswith(s) for s in ("UP","DOWN","BULL","BEAR","3L","3S")):
                 continue
             try:
-                gain_pct = float(t.get("priceChangePercent", 0))  # 净涨幅，已是百分比
+                gain_pct = float(t.get("priceChangePercent", 0))  # 合约净涨幅（已是百分比）
                 vol_usdt = float(t.get("quoteVolume", 0))
                 price    = float(t.get("lastPrice", 0))
                 high     = float(t.get("highPrice", price))
@@ -90,8 +85,8 @@ class SymbolScanner:
             except Exception:
                 continue
 
-            # 用 |净涨幅| 筛选，符合用户"涨幅超过X%"的语义
-            if (abs(gain_pct) >= min_gain
+            # 只要上涨的：净涨幅 >= +min_gain，不要负涨幅的币
+            if (gain_pct >= min_gain
                     and vol_usdt >= min_vol
                     and price >= min_px):
                 candidates.append({
@@ -102,8 +97,8 @@ class SymbolScanner:
                     "price":    price,
                 })
 
-        # 按 |净涨幅| 降序
-        candidates.sort(key=lambda x: abs(x["gain_pct"]), reverse=True)
+        # 按合约净涨幅降序（涨最多的排前面，对齐合约市场涨幅榜）
+        candidates.sort(key=lambda x: x["gain_pct"], reverse=True)
         selected = candidates[:max_n]
         self.last_scan_detail = selected
 
@@ -113,10 +108,10 @@ class SymbolScanner:
                 f"{c['symbol']}({c['gain_pct']:+.1f}% {c['vol_usdt']/1e6:.0f}M)"
                 for c in selected
             )
-            logger.info(f"涨幅榜筛选 {len(syms)} 个: {summary}")
+            logger.info(f"合约涨幅榜筛选 {len(syms)} 个 (涨幅≥+{min_gain}%): {summary}")
         else:
             logger.warning(
-                f"涨幅榜无符合条件的币 (|涨幅|≥{min_gain}%, 成交额≥{min_vol/1e6:.0f}M)，保持原列表"
+                f"合约涨幅榜无符合条件的币 (涨幅≥+{min_gain}%, 成交额≥{min_vol/1e6:.0f}M)，保持原列表"
             )
             return self._symbols or [self.cfg.SYMBOL]
 

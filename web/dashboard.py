@@ -351,10 +351,10 @@ FETUSDT</textarea>
       <div style="background:rgba(61,142,255,.06);border:1px solid rgba(61,142,255,.2);
         border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:var(--mt);line-height:1.8">
         每 <span class="am" id="rfMin">15</span> 分钟查 Binance 24h 涨幅榜，
-        筛选 <span class="bl">|涨幅| ≥ 设定值</span> 且 <span class="bl">成交量 ≥ 设定值</span> 的币。
+        筛选 <span class="bl">涨幅 ≥ +设定值</span>（只要上涨） 且 <span class="bl">成交量 ≥ 设定值</span> 的币。
       </div>
       <div class="fr">
-        <div class="field"><label>最小涨幅绝对值 %</label>
+        <div class="field"><label>最小涨幅 %（只筛上涨币）</label>
           <input type="number" id="auto_gain" value="15" min="5" max="200" step="5"></div>
         <div class="field"><label>最低24h成交量 USDT</label>
           <input type="number" id="auto_vol" value="10000000" step="1000000"></div>
