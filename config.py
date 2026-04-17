@@ -31,8 +31,8 @@ SYMBOL_LIST = [
 ]
 
 # auto 模式参数
-AUTO_MIN_GAIN_PCT    = 3.0        # 24h振幅绝对值 >= 此值（合约平静行情3-8%很常见）
-AUTO_MIN_VOLUME_USDT = 5_000_000  # 24h成交额 >= 此值（500万U）
+AUTO_MIN_GAIN_PCT    = 15.0       # 24h|净涨幅|绝对值 >= 此值
+AUTO_MIN_VOLUME_USDT = 10_000_000 # 24h成交额 >= 此值
 AUTO_MAX_SYMBOLS     = 10
 AUTO_REFRESH_SEC     = 900        # 15分钟重新筛选
 

@@ -2,7 +2,7 @@
 多币种扫描器
 - single : 只监控 config.SYMBOL
 - list   : 监控 config.SYMBOL_LIST
-- auto   : 每15分钟查 Binance 24h涨幅榜，按振幅+成交量双条件筛选
+- auto   : 每15分钟查 Binance 24h涨幅榜，按|净涨幅|+成交量双条件筛选
 """
 import logging
 import time
@@ -21,7 +21,6 @@ class SymbolScanner:
         self.cfg = config
         self._symbols: List[str] = []
         self._last_refresh: float = 0
-        # 上次筛选的详细信息（供 dashboard 展示）
         self.last_scan_detail: List[Dict] = []
         self.last_scan_time: float = 0
 
@@ -47,21 +46,17 @@ class SymbolScanner:
 
     async def _scan_gainers(self) -> List[str]:
         """
-        查 Binance 合约 24h ticker (/fapi/v1/ticker/24hr)，筛选条件：
-        1. USDT 计价合约
-        2. 非稳定币 / 非杠杆代币
-        3. 24h振幅(high-low)/price >= AUTO_MIN_GAIN_PCT %  （振幅大 = 容易出插针）
-        4. 24h成交额 >= AUTO_MIN_VOLUME_USDT
-        5. 价格 >= AUTO_MIN_PRICE
-        按振幅从高到低，取前 AUTO_MAX_SYMBOLS 个
-
-        注意：合约市场日涨幅超过15%的币非常少（行情平静时可能0个），
-        所以默认改用「振幅」(高低点之差)而不是「净涨幅」作为主筛选条件，
-        振幅3-8%在合约市场很常见，且振幅大的标的更容易出插针信号。
+        查 Binance 合约 /fapi/v1/ticker/24hr
+        筛选条件：
+          1. USDT 计价合约
+          2. 非稳定币 / 非杠杆代币
+          3. |24h净涨幅| >= AUTO_MIN_GAIN_PCT  （涨跌都算）
+          4. 24h成交额 >= AUTO_MIN_VOLUME_USDT
+          5. 价格 >= AUTO_MIN_PRICE
+        按 |净涨幅| 从高到低，取前 AUTO_MAX_SYMBOLS 个
         """
-        # 默认阈值大幅降低，适配合约市场平静行情
-        min_gain = getattr(self.cfg, "AUTO_MIN_GAIN_PCT",    3.0)    # dashboard显示的「最小涨幅」实际用作振幅阈值
-        min_vol  = getattr(self.cfg, "AUTO_MIN_VOLUME_USDT", 5_000_000)  # 500万U成交额
+        min_gain = getattr(self.cfg, "AUTO_MIN_GAIN_PCT",    15.0)
+        min_vol  = getattr(self.cfg, "AUTO_MIN_VOLUME_USDT", 10_000_000)
         min_px   = getattr(self.cfg, "AUTO_MIN_PRICE",       0.0001)
         max_n    = getattr(self.cfg, "AUTO_MAX_SYMBOLS",      10)
 
@@ -75,63 +70,53 @@ class SymbolScanner:
             logger.error(f"涨幅榜接口返回异常: {type(tickers)} {str(tickers)[:200]}")
             return self._symbols or [self.cfg.SYMBOL]
 
-        total_usdt = 0
         candidates = []
         for t in tickers:
             sym = t.get("symbol", "")
             if not sym.endswith("USDT"):
                 continue
-            total_usdt += 1
             base = sym[:-4]
             if base in _STABLES:
                 continue
-            # 排除杠杆代币（UP/DOWN/BULL/BEAR后缀）
             if any(base.endswith(s) for s in ("UP","DOWN","BULL","BEAR","3L","3S")):
                 continue
             try:
-                gain_pct = float(t.get("priceChangePercent", 0))   # 净涨幅（已是百分比）
+                gain_pct = float(t.get("priceChangePercent", 0))  # 净涨幅，已是百分比
                 vol_usdt = float(t.get("quoteVolume", 0))
                 price    = float(t.get("lastPrice", 0))
                 high     = float(t.get("highPrice", price))
                 low      = float(t.get("lowPrice",  price))
-                amp_pct  = (high - low) / price * 100 if price > 0 else 0  # 振幅
+                amp_pct  = (high - low) / price * 100 if price > 0 else 0
             except Exception:
                 continue
 
-            # 主筛选：振幅 >= min_gain（振幅比净涨幅更能代表「活跃度」）
-            # 同时保留成交量过滤，排除低流动性小币
-            if (amp_pct >= min_gain
+            # 用 |净涨幅| 筛选，符合用户"涨幅超过X%"的语义
+            if (abs(gain_pct) >= min_gain
                     and vol_usdt >= min_vol
                     and price >= min_px):
                 candidates.append({
-                    "symbol":    sym,
-                    "gain_pct":  round(gain_pct, 2),
-                    "amp_pct":   round(amp_pct, 2),
-                    "vol_usdt":  vol_usdt,
-                    "price":     price,
+                    "symbol":   sym,
+                    "gain_pct": round(gain_pct, 2),
+                    "amp_pct":  round(amp_pct, 2),
+                    "vol_usdt": vol_usdt,
+                    "price":    price,
                 })
 
-        # 按振幅降序排列——振幅大的更容易出插针
-        candidates.sort(key=lambda x: x["amp_pct"], reverse=True)
+        # 按 |净涨幅| 降序
+        candidates.sort(key=lambda x: abs(x["gain_pct"]), reverse=True)
         selected = candidates[:max_n]
         self.last_scan_detail = selected
 
         syms = [c["symbol"] for c in selected]
-        logger.info(
-            f"涨幅榜扫描完成: 合约USDT总数={total_usdt}, "
-            f"振幅≥{min_gain}%且成交额≥{min_vol/1e6:.0f}M = {len(candidates)}个, "
-            f"取前{len(syms)}个"
-        )
         if syms:
             summary = ", ".join(
-                f"{c['symbol']}(振幅{c['amp_pct']:.1f}%/{c['gain_pct']:+.1f}% {c['vol_usdt']/1e6:.0f}M)"
+                f"{c['symbol']}({c['gain_pct']:+.1f}% {c['vol_usdt']/1e6:.0f}M)"
                 for c in selected
             )
-            logger.info(f"  → {summary}")
+            logger.info(f"涨幅榜筛选 {len(syms)} 个: {summary}")
         else:
             logger.warning(
-                f"Auto扫描无结果！振幅≥{min_gain}%且成交额≥{min_vol/1e6:.0f}M 的币为0个。"
-                f"建议在Dashboard「币种管理」降低「最小涨幅绝对值」(当前{min_gain}%)或「最低24h成交量」(当前{min_vol/1e6:.0f}M)"
+                f"涨幅榜无符合条件的币 (|涨幅|≥{min_gain}%, 成交额≥{min_vol/1e6:.0f}M)，保持原列表"
             )
             return self._symbols or [self.cfg.SYMBOL]
 
@@ -140,5 +125,5 @@ class SymbolScanner:
     async def force_refresh(self):
         """手动触发立即重新筛选"""
         self._last_refresh = 0
-        self._symbols = []   # 清除缓存，确保 auto 模式重新请求
+        self._symbols = []
         return await self.get_symbols()
