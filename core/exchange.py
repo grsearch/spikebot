@@ -15,6 +15,16 @@ import aiohttp
 logger = logging.getLogger(__name__)
 
 
+
+def _fmt_qty(qty: float) -> str:
+    """根据数值大小动态选择精度，避免固定小数位导致的精度偏差。
+    正确做法是用 position_manager._round_qty 后再格式化，
+    这里做兜底：去掉末尾多余的0，最多8位小数。"""
+    # 转成字符串后去掉末尾0
+    s = f"{qty:.8f}".rstrip("0").rstrip(".")
+    return s
+
+
 class BinanceREST:
     """
     合约版客户端：
@@ -271,7 +281,7 @@ class BinanceREST:
             "side":        side,
             "type":        "LIMIT",
             "timeInForce": time_in_force,
-            "quantity":    f"{quantity:.3f}",
+            "quantity":    _fmt_qty(quantity),
             "price":       f"{price:.6f}",
         }
         if reduce_only:
@@ -291,7 +301,7 @@ class BinanceREST:
             "symbol":   symbol,
             "side":     side,
             "type":     "MARKET",
-            "quantity": f"{quantity:.3f}",
+            "quantity": _fmt_qty(quantity),
         }
         if reduce_only:
             params["reduceOnly"] = "true"
