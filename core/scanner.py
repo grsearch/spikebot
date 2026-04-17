@@ -55,8 +55,8 @@ class SymbolScanner:
         5. 价格 >= AUTO_MIN_PRICE
         按 |涨幅| 从高到低，取前 AUTO_MAX_SYMBOLS 个
         """
-        min_gain = getattr(self.cfg, "AUTO_MIN_GAIN_PCT",    30.0)
-        min_vol  = getattr(self.cfg, "AUTO_MIN_VOLUME_USDT", 20_000_000)
+        min_gain = getattr(self.cfg, "AUTO_MIN_GAIN_PCT",    15.0)
+        min_vol  = getattr(self.cfg, "AUTO_MIN_VOLUME_USDT", 10_000_000)
         min_px   = getattr(self.cfg, "AUTO_MIN_PRICE",       0.0001)
         max_n    = getattr(self.cfg, "AUTO_MAX_SYMBOLS",      10)
 
@@ -119,4 +119,5 @@ class SymbolScanner:
     async def force_refresh(self):
         """手动触发立即重新筛选"""
         self._last_refresh = 0
+        self._symbols = []   # 清除缓存，确保 auto 模式重新请求
         return await self.get_symbols()

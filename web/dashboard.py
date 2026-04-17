@@ -818,6 +818,8 @@ async def handle_force_rescan(req):
         from bot import _bot_instance
         if _bot_instance and hasattr(_bot_instance,'scanner'):
             syms=await _bot_instance.scanner.force_refresh()
+            # 立即更新 STATE，dashboard 下次推流就会刷新
+            STATE["symbols_active"] = syms
             return web.json_response({"ok":True,"symbols":syms})
     except Exception as e: return web.json_response({"ok":False,"error":str(e)})
     return web.json_response({"ok":False,"error":"scanner not ready"})

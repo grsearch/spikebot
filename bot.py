@@ -277,6 +277,14 @@ class TradingBot:
             logger.info(f"热更新: {', '.join(changed)}")
             STATE["live_config"] = _snapshot_config()
             STATE["scan_mode"]   = getattr(cfg_module, "SCAN_MODE", "single")
+            # 如果切换了扫描模式或币种配置，立即重置 scanner 缓存，下次 tick 生效
+            scan_keys = {"SCAN_MODE", "SYMBOL", "SYMBOL_LIST",
+                         "AUTO_MIN_GAIN_PCT", "AUTO_MIN_VOLUME_USDT",
+                         "AUTO_MAX_SYMBOLS", "AUTO_REFRESH_SEC"}
+            if any(k in updates for k in scan_keys):
+                self.scanner._last_refresh = 0
+                self.scanner._symbols = []
+                logger.info("scanner 缓存已重置，下次 tick 立即重新扫描")
             for sym, worker in self._workers.items():
                 worker.detector = SpikeDetector(cfg_module)
                 STATE["detectors"][sym] = worker.detector
