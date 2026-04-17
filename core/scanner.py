@@ -65,10 +65,25 @@ class SymbolScanner:
             logger.error(f"涨幅榜接口返回异常: {type(tickers)} {str(tickers)[:200]}")
             return self._symbols or [self.cfg.SYMBOL]
 
+        # 拉取当前正在交易的合约白名单，过滤掉已下线/即将下线的合约
+        trading_symbols: set = set()
+        try:
+            info = await self.ex._request("GET", "/fapi/v1/exchangeInfo")
+            if isinstance(info, dict):
+                for s in info.get("symbols", []):
+                    if s.get("status") == "TRADING" and s.get("contractType") == "PERPETUAL":
+                        trading_symbols.add(s["symbol"])
+            logger.info(f"当前TRADING状态永续合约: {len(trading_symbols)}个")
+        except Exception as e:
+            logger.warning(f"获取exchangeInfo失败，跳过白名单过滤: {e}")
+
         candidates = []
         for t in tickers:
             sym = t.get("symbol", "")
             if not sym.endswith("USDT"):
+                continue
+            # 如果拿到了白名单，只保留TRADING状态的永续合约
+            if trading_symbols and sym not in trading_symbols:
                 continue
             base = sym[:-4]
             if base in _STABLES:
