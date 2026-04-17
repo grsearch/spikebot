@@ -28,8 +28,9 @@ class BinanceREST:
         self.api_key    = api_key
         self.api_secret = api_secret
         # 自动把现货URL转合约URL（兼容旧config）
-        if "api.binance.com" in base_url:
-            base_url = base_url.replace("api.binance.com", "fapi.binance.com")
+        # 注意：必须精确匹配，避免把已经是 fapi.binance.com 的地址变成 ffapi.binance.com
+        if base_url.rstrip("/").endswith("api.binance.com") or "//api.binance.com" in base_url:
+            base_url = base_url.replace("//api.binance.com", "//fapi.binance.com")
         self.base_url   = base_url.rstrip("/")
         self.leverage   = leverage
         self.hedge_mode = hedge_mode  # False=单向(默认), True=双向(LONG/SHORT同时持仓)
