@@ -15,16 +15,6 @@ import aiohttp
 logger = logging.getLogger(__name__)
 
 
-
-def _fmt_qty(qty: float) -> str:
-    """根据数值大小动态选择精度，避免固定小数位导致的精度偏差。
-    正确做法是用 position_manager._round_qty 后再格式化，
-    这里做兜底：去掉末尾多余的0，最多8位小数。"""
-    # 转成字符串后去掉末尾0
-    s = f"{qty:.8f}".rstrip("0").rstrip(".")
-    return s
-
-
 class BinanceREST:
     """
     合约版客户端：
@@ -38,9 +28,8 @@ class BinanceREST:
         self.api_key    = api_key
         self.api_secret = api_secret
         # 自动把现货URL转合约URL（兼容旧config）
-        # 注意：必须精确匹配，避免把已经是 fapi.binance.com 的地址变成 ffapi.binance.com
-        if base_url.rstrip("/").endswith("api.binance.com") or "//api.binance.com" in base_url:
-            base_url = base_url.replace("//api.binance.com", "//fapi.binance.com")
+        if "api.binance.com" in base_url:
+            base_url = base_url.replace("api.binance.com", "fapi.binance.com")
         self.base_url   = base_url.rstrip("/")
         self.leverage   = leverage
         self.hedge_mode = hedge_mode  # False=单向(默认), True=双向(LONG/SHORT同时持仓)
@@ -48,7 +37,6 @@ class BinanceREST:
         self._weight_used = 0
         self._leverage_set = set()  # 已设置杠杆的symbol
         self._margin_type_set = set()
-        self._no_1s_symbols = set()  # 不支持1s K线的symbol，自动降级到1m
 
     async def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -87,10 +75,16 @@ class BinanceREST:
                     self._weight_used = int(used)
 
                     if resp.status == 429:
-                        retry_after = int(resp.headers.get("Retry-After", 5))
+                        retry_after = int(resp.headers.get("Retry-After", 10))
                         logger.warning(f"Rate limit hit, sleeping {retry_after}s")
                         await asyncio.sleep(retry_after)
                         continue
+
+                    # 主动退避：当权重使用 > 80%上限时主动延迟
+                    # 合约默认上限 2400/min = 40/sec
+                    if self._weight_used > 1920:  # 80%
+                        logger.warning(f"API权重用至{self._weight_used}/2400，主动sleep 3s")
+                        await asyncio.sleep(3)
 
                     if resp.status == 418:
                         logger.error("IP banned by Binance!")
@@ -99,13 +93,12 @@ class BinanceREST:
 
                     data = await resp.json()
                     if resp.status != 200:
+                        # 过滤一些"无害"的错误
                         code = data.get("code", 0) if isinstance(data, dict) else 0
-                        # 无害错误：直接返回，不重试
+                        # -4046: No need to change margin type (already set)
+                        # -4059: No need to change position mode
+                        # -4028: Leverage reduction is not supported in Isolated Mode with open positions
                         if code in (-4046, -4059):
-                            return data
-                        # 参数错误（如不支持的interval）：直接返回，不重试
-                        if resp.status == 400:
-                            logger.warning(f"API 400: {data}")
                             return data
                         logger.error(f"API error {resp.status}: {data}")
                         last_err = data
@@ -127,34 +120,16 @@ class BinanceREST:
     # ── K线 ──────────────────────────────────────────────
     async def get_klines(self, symbol: str, interval: str = "1s", limit: int = 120):
         """
-        合约K线接口。
-        币安期货 /fapi/v1/klines 支持 1s interval（2023年后上线）。
-        若某个symbol返回 -1120 Invalid interval，说明该symbol不支持1s，
-        自动降级到1m并缓存，避免重复报错。
+        合约K线接口
+        - interval='1s': 合约API不支持，改用 aggTrades 本地合成
+        - 其他: 直接调用 /fapi/v1/klines
         """
-        # 检查是否已知该symbol不支持1s
-        if interval == "1s" and symbol in self._no_1s_symbols:
-            interval = "1m"
+        if interval == "1s":
+            return await self._synthesize_1s_klines(symbol, limit)
 
         data = await self._request("GET", "/fapi/v1/klines", {
             "symbol": symbol, "interval": interval, "limit": limit
         })
-
-        # _request在API错误时返回dict而不是抛异常，需要手动检查
-        if isinstance(data, dict) and data.get("code") == -1120:
-            if interval == "1s":
-                logger.warning(f"{symbol} 不支持1s K线，降级到1m并缓存")
-                self._no_1s_symbols.add(symbol)
-                data = await self._request("GET", "/fapi/v1/klines", {
-                    "symbol": symbol, "interval": "1m", "limit": limit
-                })
-            else:
-                logger.error(f"{symbol} K线接口错误: {data}")
-                return []
-
-        if not isinstance(data, list):
-            logger.error(f"{symbol} K线返回异常: {data}")
-            return []
         klines = []
         for k in data:
             klines.append({
@@ -166,6 +141,104 @@ class BinanceREST:
                 "volume":float(k[5]),
                 "close_time": k[6],
                 "is_closed": True,
+            })
+        return klines
+
+    async def _synthesize_1s_klines(self, symbol: str, limit: int = 120):
+        """
+        用 aggTrades 合成 1s K线
+        
+        策略：
+          1. 先拉最近的1000笔
+          2. 如果覆盖时间 < limit 秒 且 成交够多，再往前拉一页
+          3. 如果已经覆盖 limit 秒就停止
+        
+        活跃币(CTSI/SOL等): 1000笔约覆盖 30秒~2分钟，通常一次够
+        低活跃币: 可能需要多页拉取
+        """
+        target_duration_ms = limit * 1000  # 目标覆盖的毫秒数
+        all_trades = []
+        
+        # 第一次拉最近的成交
+        trades = await self._request("GET", "/fapi/v1/aggTrades", {
+            "symbol": symbol, "limit": 1000
+        })
+        if not trades:
+            return []
+        all_trades = trades
+        
+        # 检查覆盖时间
+        first_t = int(trades[0]["T"])
+        last_t  = int(trades[-1]["T"])
+        covered_ms = last_t - first_t
+        
+        # 如果覆盖不够 limit 秒，最多再拉2页（避免拖慢）
+        pages_fetched = 1
+        while covered_ms < target_duration_ms and pages_fetched < 3:
+            # 用 endTime 往前翻
+            try:
+                prev_trades = await self._request("GET", "/fapi/v1/aggTrades", {
+                    "symbol": symbol,
+                    "endTime": first_t - 1,  # 严格小于之前第一笔的时间
+                    "limit": 1000
+                })
+                if not prev_trades:
+                    break
+                all_trades = prev_trades + all_trades
+                first_t = int(prev_trades[0]["T"])
+                covered_ms = last_t - first_t
+                pages_fetched += 1
+            except Exception as e:
+                logger.debug(f"{symbol} 历史aggTrades拉取失败: {e}")
+                break
+        
+        trades = all_trades
+
+        # 按秒分桶: key=秒级时间戳, value=[price, qty, ...]
+        buckets = {}  # {second: {"prices":[...], "qtys":[...], "first_t":..., "last_t":...}}
+        for t in trades:
+            price = float(t["p"])
+            qty   = float(t["q"])
+            ms_t  = int(t["T"])
+            sec_t = (ms_t // 1000) * 1000   # 对齐到秒
+
+            if sec_t not in buckets:
+                buckets[sec_t] = {
+                    "first_price": price,
+                    "high": price,
+                    "low":  price,
+                    "close_price": price,
+                    "volume": qty,
+                    "close_time": sec_t + 999,
+                }
+            else:
+                b = buckets[sec_t]
+                if price > b["high"]: b["high"] = price
+                if price < b["low"]:  b["low"]  = price
+                b["close_price"] = price  # 按时间顺序，最后一笔就是close
+                b["volume"] += qty
+
+        # 转成K线列表（按时间升序）
+        sorted_times = sorted(buckets.keys())
+        # 只保留最近 limit 根
+        if len(sorted_times) > limit:
+            sorted_times = sorted_times[-limit:]
+
+        klines = []
+        now_sec = int(time.time())
+        for t in sorted_times:
+            b = buckets[t]
+            # 判断这根K线是否已关闭（当前秒内还在变动则未关闭）
+            is_closed = (t // 1000) < now_sec
+            klines.append({
+                "open_time": t,
+                "open":  b["first_price"],
+                "high":  b["high"],
+                "low":   b["low"],
+                "close": b["close_price"],
+                "volume": b["volume"],
+                "close_time": b["close_time"],
+                "is_closed": is_closed,
             })
         return klines
 
@@ -186,17 +259,40 @@ class BinanceREST:
 
     async def get_asset_balance(self, asset: str = "USDT") -> float:
         """
-        合约账户可用余额
-        合约里 assets 是保证金资产列表
+        合约账户可用余额（用于开仓时判断够不够钱）
         """
         account = await self.get_account()
-        # availableBalance = 账户总可用（跨保证金）
         if "availableBalance" in account:
             return float(account["availableBalance"])
-        # 按资产查找
         for a in account.get("assets", []):
             if a["asset"] == asset:
                 return float(a["availableBalance"])
+        return 0.0
+
+    async def get_total_equity(self, asset: str = "USDT") -> float:
+        """
+        合约账户总权益 = 钱包余额 + 未实现盈亏
+        用于风控计算回撤（不受持仓保证金锁定影响）
+        
+        有持仓时：
+          availableBalance 会因保证金锁定而减少
+          但 totalWalletBalance + unrealizedProfit 反映真实总资产
+        """
+        account = await self.get_account()
+        # 优先用 totalMarginBalance（= 钱包+未实现盈亏）
+        if "totalMarginBalance" in account:
+            return float(account["totalMarginBalance"])
+        # fallback: 钱包余额 + 未实现盈亏
+        wallet = float(account.get("totalWalletBalance", 0))
+        unrealized = float(account.get("totalUnrealizedProfit", 0))
+        if wallet > 0:
+            return wallet + unrealized
+        # 再 fallback: 找资产
+        for a in account.get("assets", []):
+            if a["asset"] == asset:
+                w = float(a.get("walletBalance", 0))
+                u = float(a.get("unrealizedProfit", 0))
+                return w + u
         return 0.0
 
     async def get_positions(self):
@@ -255,11 +351,45 @@ class BinanceREST:
                 logger.warning(f"设置{symbol}保证金模式失败: {e}")
             return None
 
+    async def ensure_position_mode(self):
+        """
+        确保账户是单向持仓模式（One-way Mode）
+        如果是双向(Hedge)模式，下单会报 -4061 错误
+        只需在启动时调用一次
+        """
+        if getattr(self, "_position_mode_checked", False):
+            return
+        try:
+            # 查询当前模式
+            info = await self._request(
+                "GET", "/fapi/v1/positionSide/dual", {}, signed=True
+            )
+            dual_side = info.get("dualSidePosition", False)
+            if dual_side:
+                logger.warning("账户为双向持仓模式，自动切换为单向模式...")
+                try:
+                    await self._request(
+                        "POST", "/fapi/v1/positionSide/dual",
+                        {"dualSidePosition": "false"}, signed=True
+                    )
+                    logger.info("✓ 已切换为单向持仓模式")
+                except Exception as e:
+                    if "-4059" in str(e):
+                        pass  # 已经是单向
+                    else:
+                        logger.error(f"切换持仓模式失败，请手动切换: {e}")
+            else:
+                logger.info("✓ 账户已是单向持仓模式")
+            self._position_mode_checked = True
+        except Exception as e:
+            logger.warning(f"持仓模式检测失败(可忽略): {e}")
+            self._position_mode_checked = True
+
     async def ensure_symbol_setup(self, symbol: str):
-        """启动时确保symbol已设置好杠杆"""
+        """启动时确保symbol已设置好杠杆+保证金模式+持仓模式"""
+        await self.ensure_position_mode()
         if symbol not in self._leverage_set:
             await self.set_leverage(symbol)
-        # 默认用逐仓更安全
         if symbol not in self._margin_type_set:
             await self.set_margin_type(symbol, "ISOLATED")
 
@@ -281,7 +411,7 @@ class BinanceREST:
             "side":        side,
             "type":        "LIMIT",
             "timeInForce": time_in_force,
-            "quantity":    _fmt_qty(quantity),
+            "quantity":    f"{quantity:.3f}",
             "price":       f"{price:.6f}",
         }
         if reduce_only:
@@ -301,7 +431,7 @@ class BinanceREST:
             "symbol":   symbol,
             "side":     side,
             "type":     "MARKET",
-            "quantity": _fmt_qty(quantity),
+            "quantity": f"{quantity:.3f}",
         }
         if reduce_only:
             params["reduceOnly"] = "true"

@@ -107,6 +107,7 @@ _HTML_HEAD = """<!DOCTYPE html>
   <h1>SPIKE BOT</h1>
   <span class="mbadge dry" id="modeBadge">空跑</span>
   <span id="levBadge" class="mbadge" style="background:rgba(168,85,247,.15);color:var(--pu);border:1px solid rgba(168,85,247,.3)">合约 5x</span>
+  <span id="runModeBadge" class="mbadge" style="background:var(--s2);color:var(--mt);border:1px solid var(--bd)">KLINE-REST</span>
   <button id="modeBtn" onclick="toggleMode()"
     style="padding:2px 10px;font-size:10px;border-radius:5px;margin-left:4px;border-color:var(--gr);color:var(--gr)">切换实盘</button>
   <span class="htm" id="hTime"></span>
@@ -351,10 +352,10 @@ FETUSDT</textarea>
       <div style="background:rgba(61,142,255,.06);border:1px solid rgba(61,142,255,.2);
         border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:var(--mt);line-height:1.8">
         每 <span class="am" id="rfMin">15</span> 分钟查 Binance 24h 涨幅榜，
-        筛选 <span class="bl">涨幅 ≥ +设定值</span>（只要上涨） 且 <span class="bl">成交量 ≥ 设定值</span> 的币。
+        筛选 <span class="bl">|涨幅| ≥ 设定值</span> 且 <span class="bl">成交量 ≥ 设定值</span> 的币。
       </div>
       <div class="fr">
-        <div class="field"><label>最小涨幅 %（只筛上涨币）</label>
+        <div class="field"><label>最小涨幅绝对值 %</label>
           <input type="number" id="auto_gain" value="15" min="5" max="200" step="5"></div>
         <div class="field"><label>最低24h成交量 USDT</label>
           <input type="number" id="auto_vol" value="10000000" step="1000000"></div>
@@ -424,6 +425,22 @@ function renderHeader(d){
     var lev=d.live_config.LEVERAGE||5;
     var mt=(d.live_config.MARGIN_TYPE||'ISOLATED').toUpperCase();
     lb.textContent='合约 '+lev+'x '+(mt==='CROSSED'?'全仓':'逐仓');
+  }
+  // 运行模式徽章
+  var rmb=document.getElementById('runModeBadge');
+  if(rmb){
+    var rm=(d.run_mode||d.live_config&&d.live_config.RUN_MODE||'kline').toLowerCase();
+    var ws=d.ws_stats||{};
+    if(rm==='tick'){
+      var connected=ws.connected;
+      rmb.textContent='TICK '+(connected?'●':'○')+' '+(ws.messages||0)+'条';
+      rmb.style.color=connected?'var(--gr)':'var(--rd)';
+      rmb.style.borderColor=connected?'rgba(0,212,138,.3)':'rgba(255,61,90,.3)';
+    } else {
+      rmb.textContent='KLINE-REST';
+      rmb.style.color='var(--mt)';
+      rmb.style.borderColor='var(--bd)';
+    }
   }
   document.getElementById('hSymN').textContent=(d.symbols_active||[]).length;
   var dp=d.risk?d.risk.daily_pnl||0:0;
@@ -818,8 +835,6 @@ async def handle_force_rescan(req):
         from bot import _bot_instance
         if _bot_instance and hasattr(_bot_instance,'scanner'):
             syms=await _bot_instance.scanner.force_refresh()
-            # 立即更新 STATE，dashboard 下次推流就会刷新
-            STATE["symbols_active"] = syms
             return web.json_response({"ok":True,"symbols":syms})
     except Exception as e: return web.json_response({"ok":False,"error":str(e)})
     return web.json_response({"ok":False,"error":"scanner not ready"})
@@ -899,18 +914,31 @@ async def _run_grid_search(params:dict):
         combo_net_trades={i:[] for i in range(len(combos))}
         sym_results_all={}
         ATR_P=20; MP=getattr(cfg_module,"MIN_SPIKE_PIPS",0.00005)
+        log("⚠ 回测使用 1分钟K线（合约不支持1秒K线的历史数据查询）")
+        log("  实盘仍用1秒aggTrades合成，回测参数仅作参考")
         for si,symbol in enumerate(symbols):
-            log("["+str(si+1)+"/"+str(len(symbols))+"] 拉取 "+symbol+" "+str(days)+"天K线...")
-            klines,end_time=[],None
-            while len(klines)<days*86400:
+            log("["+str(si+1)+"/"+str(len(symbols))+"] 拉取 "+symbol+" "+str(days)+"天 1m K线...")
+            klines=[]
+            # 1m K线：一天1440根，7天10080根
+            needed = days * 1440
+            # Binance合约单次最多1500根
+            end_time = None
+            while len(klines) < needed:
                 try:
-                    chunk=await ex.get_klines(symbol,"1s",1000)
-                    if not chunk: break
-                    klines=chunk+klines; end_time=chunk[0]["open_time"]-1
+                    params = {"symbol": symbol, "interval": "1m", "limit": 1500}
+                    if end_time:
+                        params["endTime"] = end_time
+                    raw = await ex._request("GET", "/fapi/v1/klines", params)
+                    if not raw: break
+                    chunk = [{"open_time": k[0], "open": float(k[1]), "high": float(k[2]),
+                              "low": float(k[3]), "close": float(k[4]), "volume": float(k[5]),
+                              "close_time": k[6]} for k in raw]
+                    klines = chunk + klines
+                    end_time = chunk[0]["open_time"] - 1
                     await asyncio.sleep(0.10)
                 except Exception as e: log("  拉取失败: "+str(e)); break
             N=len(klines)
-            if N<100: log("  数据不足，跳过"); STATE["grid_progress"]+=len(combos); continue
+            if N<50: log("  数据不足，跳过"); STATE["grid_progress"]+=len(combos); continue
             log("  "+str(N)+" 根K线，预计算...")
             opens=[k["open"] for k in klines]; highs=[k["high"] for k in klines]
             lows=[k["low"] for k in klines];   closes=[k["close"] for k in klines]

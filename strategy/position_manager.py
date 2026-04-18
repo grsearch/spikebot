@@ -179,21 +179,28 @@ class PositionManager:
                 symbol=sym, side=signal.direction, quantity=qty,
                 reduce_only=False,
             )
-            filled_qty = float(order.get("executedQty", 0))
-            avg_price = order.get("avgPrice") or order.get("averagePrice")
-            if avg_price and float(avg_price) > 0:
-                filled_price = float(avg_price)
-            else:
-                fills = order.get("fills", [])
-                if fills:
-                    total_cost = sum(float(f["price"]) * float(f["qty"]) for f in fills)
-                    total_qty_f  = sum(float(f["qty"]) for f in fills)
-                    filled_price = total_cost / total_qty_f if total_qty_f > 0 else signal.entry_price
-                else:
-                    filled_price = signal.entry_price
-
-            if filled_qty < min_qty:
+            # ── 合约市价单是异步成交 ──────────────────────
+            # Binance返回 status: NEW, executedQty: 0 是正常的
+            # 只要 orderId 存在，就认为下单成功（后续会成交）
+            order_id = order.get("orderId")
+            if not order_id:
+                logger.error(f"{sym} 下单无orderId，异常响应: {order}")
                 return None
+
+            # 尝试立即拿成交价；拿不到就用信号价兜底
+            # 实盘中 try_open 返回后，仓位监控会用当前市价计算盈亏，不太依赖入场价精度
+            filled_qty = float(order.get("executedQty", 0))
+            avg_price_str = order.get("avgPrice") or order.get("averagePrice")
+            
+            if filled_qty <= 0 or not avg_price_str or float(avg_price_str) <= 0:
+                # 异步成交：用下单数量作为已成交，用信号价作为估算成交价
+                # 这样仓位能立即被监控，不会错过TP/SL
+                filled_qty = qty
+                filled_price = signal.entry_price
+                logger.info(f"{sym} 市价单异步成交中，使用下单数量{qty}和信号价{filled_price}")
+                # 注：如果实际成交价偏离较大，后续monitor会发现并触发相应退出
+            else:
+                filled_price = float(avg_price_str)
 
             self._pos_counter += 1
             pos = Position(
@@ -331,65 +338,18 @@ class PositionManager:
             f"Closing #{pos.id} {pos.symbol} {pos.direction} @ {exit_price:.6f} "
             f"[{reason}] age={pos.age_seconds:.1f}s"
         )
-
-        # 重试策略：
-        #   第1次: 用原始数量（正常情况）
-        #   第2次: 取整数（绕过精度问题，尽快平仓止损）
-        #   第3次: 取整数再减1（再保险一层）
-        #   超过3次: 放弃，标记ABANDONED，提示手动处理
-        MAX_CLOSE_ATTEMPTS = 3
-        pos.close_attempts = getattr(pos, "close_attempts", 0) + 1
-
-        if pos.close_attempts > MAX_CLOSE_ATTEMPTS:
-            logger.error(
-                f"#{pos.id} {pos.symbol} 平仓连续失败{MAX_CLOSE_ATTEMPTS}次，强制放弃 (ABANDONED)。"
-                f"请立即手动在交易所检查并关闭仓位！"
-            )
-            pos.status       = "ABANDONED"
-            pos.close_price  = exit_price
-            pos.close_reason = "ABANDONED"
-            pos.pnl_usdt     = round(pos.calc_pnl(exit_price), 4)
-            return
-
-        # 根据重试次数决定平仓数量
-        if pos.close_attempts == 1:
-            sell_qty = pos.quantity                    # 原始数量
-        elif pos.close_attempts == 2:
-            # 取整：只对数量>=1的币有意义，否则保持原数量
-            int_qty = float(int(pos.quantity))
-            sell_qty = int_qty if int_qty >= 1.0 else pos.quantity
-            logger.warning(f"#{pos.id} 第2次尝试，改用整数数量: {sell_qty} (原:{pos.quantity})")
-        else:
-            int_qty = float(int(pos.quantity))
-            if int_qty >= 2.0:
-                sell_qty = int_qty - 1.0               # 整数再减1，更保守
-            elif int_qty >= 1.0:
-                sell_qty = int_qty
-            else:
-                sell_qty = pos.quantity                # 数量<1时无法取整，保持原值
-            logger.warning(f"#{pos.id} 第3次尝试，数量: {sell_qty} (原:{pos.quantity})")
-
         try:
-            order = await self.ex.place_market_order(
-                pos.symbol, close_side, sell_qty, reduce_only=True
+            await self.ex.place_market_order(
+                pos.symbol, close_side, pos.quantity, reduce_only=True
             )
-            if isinstance(order, dict) and order.get("status") not in ("FILLED", None):
-                raise RuntimeError(f"平仓单状态异常: {order}")
         except Exception as e:
-            logger.error(
-                f"Close failed #{pos.id} {pos.symbol} qty={sell_qty} "
-                f"(尝试{pos.close_attempts}/{MAX_CLOSE_ATTEMPTS}): {e}"
-            )
-            # 失败不标记CLOSED，下次tick继续重试
-            return
+            logger.error(f"Close failed: {e}")
 
-        # 平仓成功
         pnl = pos.calc_pnl(exit_price)
         pos.status       = "CLOSED"
         pos.close_price  = exit_price
         pos.close_reason = reason
         pos.pnl_usdt     = round(pnl, 4)
-        pos.close_attempts = 0
         self._total_pnl += pnl
         if pnl > 0:
             self._win_count  += 1

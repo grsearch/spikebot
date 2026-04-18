@@ -8,6 +8,20 @@ API_KEY     = "YOUR_API_KEY"
 API_SECRET  = "YOUR_API_SECRET"
 BASE_URL    = "https://fapi.binance.com"   # 合约API端点
 
+# ── 运行模式 ─────────────────────────────────────────────────
+# "kline" : K线+REST轮询（腾讯云兼容，延迟高）
+# "tick"  : WebSocket+tick级检测（AWS/香港，延迟<100ms，核心模式）
+RUN_MODE = "tick"    # AWS Tokyo 环境用 tick（WebSocket实时流）
+
+# ── Tick模式参数（仅 RUN_MODE=tick 生效）──────────────────────
+TICK_LOOKBACK_MS    = 2000   # 滑动窗口长度(毫秒)，越短越敏感
+TICK_ATR_WINDOW_SEC = 60     # ATR计算窗口(秒)
+TICK_MIN_SPIKE_PCT  = 0.002  # 最小振幅(0.2%)，过滤噪音
+TICK_TP_RATIO       = 0.40   # 止盈=针长×40%（吃第一波反弹）
+TICK_SL_RATIO       = 0.25   # 止损=针尖再下行 25%针长
+TICK_COOLDOWN_MS    = 3000   # 同币种两次信号最少间隔(ms)
+TICK_MAX_HOLD_MS    = 3000   # tick模式最长持仓3秒，不反弹就跑
+
 # ── 合约设置 ─────────────────────────────────────────────────
 LEVERAGE    = 5       # 杠杆倍数（1~125，建议 3~10）
                       # 5x 意味着：100U 保证金 = 500U 仓位
@@ -20,7 +34,7 @@ MARGIN_TYPE = "ISOLATED"  # ISOLATED(逐仓) | CROSSED(全仓)
 # "single" = 只盯一个币
 # "list"   = 手动指定列表
 # "auto"   = 每15分钟查涨幅榜自动筛选
-SCAN_MODE   = "single"
+SCAN_MODE   = "auto"   # auto 自动追热门币（推荐）
 SYMBOL      = "CTSIUSDT"
 BASE_ASSET  = "CTSI"          # 合约里用不上，保留
 QUOTE_ASSET = "USDT"          # 保证金资产
@@ -31,9 +45,9 @@ SYMBOL_LIST = [
 ]
 
 # auto 模式参数
-AUTO_MIN_GAIN_PCT    = 15.0       # 24h|净涨幅|绝对值 >= 此值
+AUTO_MIN_GAIN_PCT    = 15.0       # 24h涨幅绝对值 >= 此值
 AUTO_MIN_VOLUME_USDT = 10_000_000 # 24h成交额 >= 此值
-AUTO_MAX_SYMBOLS     = 10
+AUTO_MAX_SYMBOLS     = 6    # 下单/风控仍走REST，控制数量
 AUTO_REFRESH_SEC     = 900        # 15分钟重新筛选
 
 # ── 插针检测参数 ──────────────────────────────────────────────
@@ -79,7 +93,7 @@ TP_RATIO     = 1.3    # 止盈目标（仅在TRAILING未激活时生效，作为
                       # 1.3=超过针根30%，给TRAILING更多发挥空间
 SL_RATIO     = 0.10   # 止损基础比例：针尖 - 针长 × 10%
 SL_ATR_MULT  = 0.5    # 止损ATR倍数：针尖 - ATR × 0.5（两者取大）
-MIN_RR       = 1.5    # 最低风险收益比（需覆盖手续费）
+MIN_RR       = 1.0    # tick模式紧止损，R:R 1.0+配合高胜率即可盈利
                         # 胜率50% + R:R=1.5 → 期望值为正
                         # 胜率45% + R:R=2.0 → 勉强覆盖手续费
                         # 胜率40% + R:R=2.5 → 需要非常严格的信号质量
@@ -116,7 +130,9 @@ ORDER_USDT      = 20.0  # 每笔下单金额
 MAX_OPEN_ORDERS = 2     # 同时最多持仓笔数
 
 # ── 轮询 ─────────────────────────────────────────────────────
-POLL_INTERVAL_MS = 800   # REST轮询间隔（毫秒）
+POLL_INTERVAL_MS = 1500  # REST轮询间隔（毫秒）
+                         # 合约aggTrades权重=20/次, 6个币*40=240/秒会超限
+                         # 1500ms + 6币 ≈ 30权重/秒，保守安全
 KLINE_LIMIT      = 120   # 每次拉取K线根数
 
 # ── 风险控制 ──────────────────────────────────────────────────
