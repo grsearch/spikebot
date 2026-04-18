@@ -24,6 +24,10 @@ class SymbolScanner:
         # 上次筛选的详细信息（供 dashboard 展示）
         self.last_scan_detail: List[Dict] = []
         self.last_scan_time: float = 0
+        # 合约白名单: 只保留 status=TRADING 的合约
+        # 过滤即将下架(SETTLING)的币，否则会抓到插针式行情实际是结算导致的
+        self._trading_symbols: set = set()
+        self._whitelist_refreshed_at: float = 0
 
     async def get_symbols(self) -> List[str]:
         mode = getattr(self.cfg, "SCAN_MODE", "single")
@@ -45,6 +49,40 @@ class SymbolScanner:
 
         return [self.cfg.SYMBOL]
 
+    async def _refresh_trading_whitelist(self):
+        """
+        刷新合约白名单 - 只保留 status=TRADING 的活跃合约
+        过滤掉 SETTLING(结算中/即将下架) 和 PENDING_TRADING(即将上线但未交易)
+        每小时刷一次就够
+        """
+        now = time.time()
+        if (self._trading_symbols and
+            now - self._whitelist_refreshed_at < 3600):
+            return
+        try:
+            info = await self.ex._request("GET", "/fapi/v1/exchangeInfo", {})
+            new_whitelist = set()
+            excluded = []
+            for s in info.get("symbols", []):
+                sym = s.get("symbol", "")
+                status = s.get("status", "")
+                ctype  = s.get("contractType", "")
+                if status == "TRADING" and ctype == "PERPETUAL":
+                    new_whitelist.add(sym)
+                elif sym.endswith("USDT"):
+                    excluded.append((sym, status))
+            self._trading_symbols = new_whitelist
+            self._whitelist_refreshed_at = now
+            if excluded:
+                # 只显示前5个被排除的（避免日志过长）
+                ex_str = ", ".join(f"{s}({st})" for s, st in excluded[:5])
+                more = f" +{len(excluded)-5}个" if len(excluded) > 5 else ""
+                logger.info(f"合约白名单 {len(new_whitelist)} 个活跃交易对，排除: {ex_str}{more}")
+            else:
+                logger.info(f"合约白名单 {len(new_whitelist)} 个")
+        except Exception as e:
+            logger.warning(f"刷新合约白名单失败: {e}（保留上次数据）")
+
     async def _scan_gainers(self) -> List[str]:
         """
         查 Binance 24h ticker，筛选条件：
@@ -59,6 +97,9 @@ class SymbolScanner:
         min_vol  = getattr(self.cfg, "AUTO_MIN_VOLUME_USDT", 20_000_000)
         min_px   = getattr(self.cfg, "AUTO_MIN_PRICE",       0.0001)
         max_n    = getattr(self.cfg, "AUTO_MAX_SYMBOLS",      10)
+
+        # 先刷新合约白名单
+        await self._refresh_trading_whitelist()
 
         try:
             tickers = await self.ex._request("GET", "/fapi/v1/ticker/24hr")
@@ -76,6 +117,10 @@ class SymbolScanner:
                 continue
             # 排除杠杆代币（UP/DOWN/BULL/BEAR后缀）
             if any(base.endswith(s) for s in ("UP","DOWN","BULL","BEAR","3L","3S")):
+                continue
+            # 关键过滤: 只允许 status=TRADING 的永续合约
+            # ALPACAUSDT/我踏马来了USDT 等即将下架的币会被排除
+            if self._trading_symbols and sym not in self._trading_symbols:
                 continue
             try:
                 gain_pct = float(t.get("priceChangePercent", 0))  # 已是百分比
