@@ -116,6 +116,14 @@ class SpikeDetector:
         if atr == 0:
             return None
 
+        # ── 整根K线振幅门槛（最关键的新过滤条件）──────────────────
+        # 只做振幅足够大的K线，过滤掉低波动噪音信号
+        # candle.range = high - low，振幅% = range / close
+        min_range_pct = getattr(self.cfg, 'MIN_CANDLE_RANGE_PCT', 0.008)
+        candle_range_pct = candle.range / candle.close if candle.close > 0 else 0
+        if candle_range_pct < min_range_pct:
+            return None
+
         # ── 下插针 → BUY ──────────────────────────────────────
         spike_drop = candle.open - candle.low
         if spike_drop > atr * self.cfg.SPIKE_VS_ATR:
