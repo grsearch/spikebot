@@ -81,7 +81,7 @@ class SymbolWorker:
         STATE["detectors"][symbol] = self.detector
 
     async def tick(self):
-        klines = await self.ex.get_klines(self.symbol, "1s", cfg_module.KLINE_LIMIT)
+        klines = await self.ex.get_klines(self.symbol, "1m", cfg_module.KLINE_LIMIT)
         if not klines:
             return
 

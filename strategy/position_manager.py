@@ -442,14 +442,18 @@ class PositionManager:
             gross = (avg - pos.entry_price) * qty
         else:
             gross = (pos.entry_price - avg) * qty
-        net = gross - pos.fee_usdt
+        # fee_usdt 此时只有入场费（_verify_entry_fill 已加），这里加上出场费
+        total_fee = pos.fee_usdt + fee
+        net = gross - total_fee
 
         # 从 total_pnl 里减掉之前估算的，加上真实的
         old_net = pos.pnl_usdt
-        self._total_pnl += (net - old_net)
-        self._total_fee += fee   # 只加出场那次的费，入场已加
+        old_fee = pos.fee_usdt
+        self._total_pnl  += (net - old_net)
+        self._total_fee  += (total_fee - old_fee)   # 补上差额，避免重复
         self._total_gross += (gross - pos.gross_pnl)
 
+        pos.fee_usdt  = round(total_fee, 4)
         pos.gross_pnl = round(gross, 4)
         pos.pnl_usdt  = round(net, 4)
 

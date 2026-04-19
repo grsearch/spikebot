@@ -11,7 +11,7 @@ BASE_URL    = "https://fapi.binance.com"   # 合约API端点
 # ── 运行模式 ─────────────────────────────────────────────────
 # "kline" : K线+REST轮询（腾讯云兼容，延迟高）
 # "tick"  : WebSocket+tick级检测（AWS/香港，延迟<100ms，核心模式）
-RUN_MODE = "tick"    # AWS Tokyo 环境用 tick（WebSocket实时流）
+RUN_MODE = "kline"  # 1分钟K线模式，信号质量更稳定
 
 # ── Tick模式参数（仅 RUN_MODE=tick 生效）──────────────────────
 TICK_LOOKBACK_MS    = 2000   # 滑动窗口长度(毫秒)，越短越敏感
@@ -56,7 +56,7 @@ AUTO_REFRESH_SEC     = 900        # 15分钟重新筛选
 #   即实体占针比例 和 回归比例 是同一个量的两种表达
 #   所以只需控制 recovery 即可（旧版的 SPIKE_RATIO 被移除）
 SPIKE_VS_ATR = 3.0    # 针长 / ATR(20) >= 3.0（严筛但保留频率）
-ATR_PERIOD   = 20
+ATR_PERIOD   = 14
 MIN_SPIKE_PIPS = 0.00005  # 当前未使用（SPIKE_VS_ATR已足够过滤）
 SPIKE_RATIO  = 2.5    # 已弃用（保留供回测兼容）
 
@@ -72,8 +72,8 @@ SPIKE_RATIO  = 2.5    # 已弃用（保留供回测兼容）
 #   == 1.0 时：已完全回到针根，没有利润空间了
 #   == 0.70：还有30%空间留给止盈
 #
-MIN_RECOVERY = 0.25   # 入场更早 → R:R更好
-MAX_RECOVERY = 0.40   # 最多回归40%，保证R:R>=1.2
+MIN_RECOVERY = 0.30   # 1m K线已有价格确认，回归30%以上才入场
+MAX_RECOVERY = 0.50   # 1m K线给更多回归空间
                       # 关键推导:
                       #   recovery=25% → R:R≈2.1
                       #   recovery=30% → R:R≈1.7
@@ -98,7 +98,7 @@ MIN_RR       = 1.5    # R:R>=1.5（覆盖手续费同时保留信号数）
                         # 胜率45% + R:R=2.0 → 勉强覆盖手续费
                         # 胜率40% + R:R=2.5 → 需要非常严格的信号质量
 
-MAX_HOLD_SECONDS = 60  # 超时强制平仓（合约+trailing需要更长时间）
+MAX_HOLD_SECONDS = 300  # 1m模式超时5分钟，给价格足够时间反弹
 
 # ── 手续费 ───────────────────────────────────────────────────
 FEE_RATE     = 0.00045 # 合约手续费 Taker 0.045%（实测），开+平共 0.09%
@@ -131,7 +131,7 @@ ORDER_USDT      = 20.0  # 每笔下单金额
 MAX_OPEN_ORDERS = 2     # 同时最多持仓笔数
 
 # ── 轮询 ─────────────────────────────────────────────────────
-POLL_INTERVAL_MS = 1500  # REST轮询间隔（毫秒）
+POLL_INTERVAL_MS = 5000  # 1m K线模式：5s轮询一次，6币×安全
                          # 合约aggTrades权重=20/次, 6个币*40=240/秒会超限
                          # 1500ms + 6币 ≈ 30权重/秒，保守安全
 KLINE_LIMIT      = 120   # 每次拉取K线根数
