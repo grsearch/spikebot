@@ -30,30 +30,18 @@ async def main():
     logger.info(f"扫描: {config.SCAN_MODE}  |  Dashboard: http://0.0.0.0:{config.WEB_PORT}")
     logger.info("=" * 55)
 
-    from bot import TradingBot
-    from core.exchange import BinanceREST
-    from core.scanner import SymbolScanner
-    from strategy.position_manager import PositionManager
-    from strategy.risk_manager import RiskManager
-    from web.dashboard import run_dashboard
+    from bot import run as run_bot
+    from web.dashboard import run_web
 
-    ex = BinanceREST(config.API_KEY, config.API_SECRET, config.BASE_URL)
-    scanner = SymbolScanner(ex, config)
-    pm = PositionManager(ex, config)
-    rm = RiskManager(config)
-    bot_instance = TradingBot(ex, scanner, pm, rm, config)
-
-    dashboard_task = asyncio.create_task(
-        run_dashboard(bot_instance, config.WEB_HOST, config.WEB_PORT)
-    )
-    bot_task = asyncio.create_task(bot_instance.start())
+    # 先启动 Web Dashboard（非阻塞，返回 runner 供最终 cleanup）
+    web_runner = await run_web()
 
     try:
-        await asyncio.gather(bot_task, dashboard_task)
+        await run_bot()
     except KeyboardInterrupt:
         logger.info("用户中断")
     finally:
-        bot_instance._running = False
+        await web_runner.cleanup()
         logger.info("Bot stopped")
 
 if __name__ == "__main__":

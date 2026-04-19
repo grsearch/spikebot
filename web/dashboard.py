@@ -878,15 +878,19 @@ async def handle_stream(req):
 async def handle_set_params(req):
     try:
         updates=await req.json()
+        changed=[]
         try:
             from bot import _bot_instance
             if _bot_instance:
                 changed=_bot_instance.apply_live_config(updates)
-                return web.json_response({"ok":True,"changed":changed})
         except Exception: pass
-        for k,v in updates.items():
-            if hasattr(cfg_module,k): setattr(cfg_module,k,v)
-        return web.json_response({"ok":True,"changed":list(updates.keys())})
+        if not changed:
+            for k,v in updates.items():
+                if hasattr(cfg_module,k): setattr(cfg_module,k,v)
+            changed=list(updates.keys())
+        # 持久化写回 config.py，重启后不丢失
+        _persist_config(updates)
+        return web.json_response({"ok":True,"changed":changed})
     except Exception as e: return web.json_response({"ok":False,"error":str(e)})
 
 async def handle_toggle_trading(req):
@@ -1149,3 +1153,33 @@ async def run_web():
     await site.start()
     logger.info(f"Dashboard: http://0.0.0.0:{cfg_module.WEB_PORT}")
     return runner
+
+# ── 补丁：持久化写入 config.py ──────────────────────────────────
+import re as _re, pathlib as _pathlib
+
+def _persist_config(updates: dict):
+    """将参数修改写回 config.py，保证重启后不丢失"""
+    try:
+        cfg_path = _pathlib.Path(__file__).parent.parent / "config.py"
+        text = cfg_path.read_text(encoding="utf-8")
+        for key, val in updates.items():
+            if isinstance(val, str):
+                replacement = f'{key} = "{val}"'
+            elif isinstance(val, bool):
+                replacement = f'{key} = {val}'
+            elif isinstance(val, list):
+                replacement = f'{key} = {val!r}'
+            else:
+                replacement = f'{key} = {val}'
+            # 匹配行首的 KEY = ... 赋值（保留注释行不动）
+            text = _re.sub(
+                rf'^({_re.escape(key)})\s*=\s*[^\n]+',
+                replacement,
+                text,
+                flags=_re.MULTILINE
+            )
+        cfg_path.write_text(text, encoding="utf-8")
+        return True
+    except Exception as e:
+        logger.warning(f"config.py 写入失败: {e}")
+        return False
