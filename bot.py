@@ -475,7 +475,7 @@ class TradingBot:
         # 对所有持仓强制检查timeout（即使worker还在也做一次兜底）
         # monitor_positions 里已经有 timeout 逻辑
         for pos in list(self.pm.open_positions):
-            if pos.age_seconds >= self.cfg.MAX_HOLD_SECONDS:
+            if pos.age_seconds >= cfg_module.MAX_HOLD_SECONDS:
                 # 已经超时还没平，强制平
                 cur_price = STATE.get("prices", {}).get(pos.symbol, 0)
                 if cur_price > 0:
