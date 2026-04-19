@@ -10,59 +10,59 @@ logger = logging.getLogger(__name__)
 _CSS = """
 :root{--bg:#0a0c10;--s1:#111318;--s2:#181c24;--bd:#22283a;
 --gr:#00d48a;--rd:#ff3d5a;--bl:#3d8eff;--am:#ffb020;--pu:#a855f7;
---tx:#dde3f0;--mt:#4a5568;--r:10px}
+--tx:#e8edf5;--mt:#8b95a7;--mt2:#a8b3c6;--r:10px}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--tx);font-family:'SF Mono','Fira Code',monospace;font-size:12px}
+body{background:var(--bg);color:var(--tx);font-family:'SF Mono','Fira Code',monospace;font-size:14px}
 header{background:var(--s1);border-bottom:1px solid var(--bd);padding:9px 18px;
   display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--mt);flex-shrink:0}
 .dot.on{background:var(--gr);box-shadow:0 0 7px var(--gr);animation:blink 1.8s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-h1{font-size:13px;font-weight:700;letter-spacing:.1em;color:var(--bl)}
-.mbadge{padding:2px 10px;border-radius:6px;font-size:10px;font-weight:700;letter-spacing:.06em}
+h1{font-size:15px;font-weight:700;letter-spacing:.1em;color:var(--bl)}
+.mbadge{padding:3px 10px;border-radius:6px;font-size:12px;font-weight:700;letter-spacing:.06em}
 .dry{background:rgba(255,176,32,.15);color:var(--am);border:1px solid rgba(255,176,32,.3)}
 .live{background:rgba(0,212,138,.15);color:var(--gr);border:1px solid rgba(0,212,138,.3)}
 .hdr{margin-left:auto;display:flex;align-items:center;gap:16px}
 .hstat{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
-.hstat .lb{font-size:9px;color:var(--mt);text-transform:uppercase;letter-spacing:.06em}
-.hstat .vl{font-size:14px;font-weight:700;line-height:1}
+.hstat .lb{font-size:11px;color:var(--mt);text-transform:uppercase;letter-spacing:.06em}
+.hstat .vl{font-size:16px;font-weight:700;line-height:1}
 .hdiv{width:1px;height:28px;background:var(--bd)}
-.htm{font-size:10px;color:var(--mt)}
+.htm{font-size:12px;color:var(--mt)}
 .tabs{background:var(--s1);border-bottom:1px solid var(--bd);display:flex;padding:0 18px}
-.tab{padding:10px 16px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+.tab{padding:11px 18px;font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
   color:var(--mt);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;user-select:none}
 .tab:hover{color:var(--tx)}.tab.active{color:var(--bl);border-bottom-color:var(--bl)}
 .panel{display:none;padding:14px 18px;flex-direction:column;gap:12px}
 .panel.active{display:flex}
 .card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px}
-.ch{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;
+.ch{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;
   color:var(--mt);margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media(max-width:900px){.g4,.g3{grid-template-columns:repeat(2,1fr)}.g2{grid-template-columns:1fr}}
-.sc .lb{font-size:9px;color:var(--mt);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
-.sc .vl{font-size:22px;font-weight:800;line-height:1.1}
-.sc .sb{font-size:9px;color:var(--mt);margin-top:3px}
+.sc .lb{font-size:11px;color:var(--mt);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
+.sc .vl{font-size:26px;font-weight:800;line-height:1.1}
+.sc .sb{font-size:11px;color:var(--mt2);margin-top:3px}
 .gr{color:var(--gr)}.rd{color:var(--rd)}.bl{color:var(--bl)}.am{color:var(--am)}.pu{color:var(--pu)}
-.tag{display:inline-block;padding:2px 7px;border-radius:3px;font-size:9px;font-weight:700}
+.tag{display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700}
 .tag.buy{background:rgba(0,212,138,.12);color:var(--gr)}
 .tag.sell{background:rgba(255,61,90,.12);color:var(--rd)}
 .tag.tp{background:rgba(0,212,138,.12);color:var(--gr)}
 .tag.sl{background:rgba(255,61,90,.12);color:var(--rd)}
 .tag.timeout{background:rgba(61,142,255,.12);color:var(--bl)}
 table{width:100%;border-collapse:collapse}
-th{padding:5px 8px;text-align:left;font-size:9px;color:var(--mt);
+th{padding:7px 10px;text-align:left;font-size:11px;color:var(--mt);
   text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--bd)}
-td{padding:6px 8px;border-bottom:1px solid #13171f;font-size:11px}
+td{padding:8px 10px;border-bottom:1px solid #1c2030;font-size:13px;color:var(--tx)}
 tr:last-child td{border:none}tr:hover td{background:#13171f}
 .rb{height:4px;border-radius:2px;background:var(--s2);margin-top:5px;overflow:hidden}
 .rf{height:100%;border-radius:2px;transition:width .5s}
-.bdg{display:inline-block;padding:2px 8px;border-radius:8px;font-size:9px;font-weight:700}
+.bdg{display:inline-block;padding:3px 9px;border-radius:8px;font-size:11px;font-weight:700}
 .bdg.ok{background:rgba(0,212,138,.15);color:var(--gr)}
 .bdg.ng{background:rgba(255,61,90,.15);color:var(--rd)}
-button{background:transparent;border:1px solid var(--bd);color:var(--tx);padding:6px 14px;
-  border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;transition:all .15s}
+button{background:transparent;border:1px solid var(--bd);color:var(--tx);padding:7px 16px;
+  border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;transition:all .15s}
 button:hover{border-color:var(--bl);color:var(--bl)}
 button.danger{border-color:var(--rd);color:var(--rd)}button.danger:hover{background:rgba(255,61,90,.08)}
 button.primary{border-color:var(--bl);color:var(--bl)}button.primary:hover{background:rgba(61,142,255,.08)}
@@ -73,22 +73,22 @@ button:disabled{opacity:.35;cursor:not-allowed}
 .cb-box.tripped{background:rgba(255,61,90,.06);border-color:rgba(255,61,90,.4)}
 .cb-box.ok{background:rgba(0,212,138,.04);border-color:rgba(0,212,138,.2)}
 .cb-icon{font-size:18px}.cb-text{flex:1}
-.cb-title{font-size:12px;font-weight:700;margin-bottom:2px}
-.cb-sub{font-size:10px;color:var(--mt)}
+.cb-title{font-size:14px;font-weight:700;margin-bottom:3px}
+.cb-sub{font-size:12px;color:var(--mt2)}
 .fr{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
 .field{display:flex;flex-direction:column;gap:4px}
-.field label{font-size:10px;color:var(--mt);text-transform:uppercase;letter-spacing:.06em}
+.field label{font-size:12px;color:var(--tx);text-transform:uppercase;letter-spacing:.06em;font-weight:500}
 .field input,.field select,.field textarea{background:var(--s2);border:1px solid var(--bd);
   color:var(--tx);padding:6px 10px;border-radius:6px;font-size:12px;font-family:inherit;
   outline:none;transition:border-color .15s}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--bl)}
-.field .hint{font-size:9px;color:var(--mt)}
+.field .hint{font-size:11px;color:var(--mt2);line-height:1.5}
 .prog-bar{height:6px;border-radius:3px;background:var(--s2);margin:8px 0;overflow:hidden}
 .prog-fill{height:100%;border-radius:3px;background:var(--bl);transition:width .3s}
 .rbest{background:rgba(0,212,138,.05)}
 .spill{display:inline-flex;align-items:center;gap:6px;background:var(--s2);
-  border:1px solid var(--bd);border-radius:6px;padding:4px 10px;font-size:11px;margin:3px}
-.logbox{height:130px;overflow-y:auto;padding:8px 10px;font-size:10px;
+  border:1px solid var(--bd);border-radius:6px;padding:6px 12px;font-size:13px;margin:3px}
+.logbox{height:150px;overflow-y:auto;padding:8px 10px;font-size:12px;
   line-height:1.8;background:var(--s2);border-radius:6px}
 .logbox .e{color:var(--rd)}.logbox .i{color:var(--mt)}
 .gain-pos{color:var(--gr);font-weight:700}.gain-neg{color:var(--rd);font-weight:700}
@@ -105,18 +105,24 @@ _HTML_HEAD = """<!DOCTYPE html>
 <header>
   <div class="dot" id="hDot"></div>
   <h1>SPIKE BOT</h1>
-  <span class="mbadge dry" id="modeBadge">空跑</span>
+  <span class="mbadge live" id="modeBadge">实盘 LIVE</span>
   <span id="levBadge" class="mbadge" style="background:rgba(168,85,247,.15);color:var(--pu);border:1px solid rgba(168,85,247,.3)">合约 5x</span>
   <span id="runModeBadge" class="mbadge" style="background:var(--s2);color:var(--mt);border:1px solid var(--bd)">KLINE-REST</span>
-  <button id="modeBtn" onclick="toggleMode()"
-    style="padding:2px 10px;font-size:10px;border-radius:5px;margin-left:4px;border-color:var(--gr);color:var(--gr)">切换实盘</button>
   <span class="htm" id="hTime"></span>
+  <button id="tradingBtn" onclick="toggleTrading()"
+    style="padding:6px 18px;font-size:13px;font-weight:700;border-radius:6px;cursor:pointer;
+           border:1.5px solid var(--gr);color:var(--gr);background:rgba(0,212,138,.10);
+           transition:all .2s;letter-spacing:.04em">
+    ⏸ 暂停交易
+  </button>
   <div class="hdr">
     <div class="hstat"><span class="lb">监控币种</span><span class="vl am" id="hSymN">0</span></div>
     <div class="hdiv"></div>
-    <div class="hstat"><span class="lb">今日收益</span><span class="vl" id="hDay">+0.0000</span></div>
+    <div class="hstat"><span class="lb">今日净收益</span><span class="vl" id="hDay">+0.0000</span></div>
     <div class="hdiv"></div>
-    <div class="hstat"><span class="lb">总收益</span><span class="vl" id="hTot">+0.0000</span></div>
+    <div class="hstat"><span class="lb">总净收益</span><span class="vl" id="hTot">+0.0000</span></div>
+    <div class="hdiv"></div>
+    <div class="hstat"><span class="lb">累计手续费</span><span class="vl" id="hFee" style="color:var(--mt)">-0.0000</span></div>
   </div>
 </header>
 <div class="tabs">
@@ -129,22 +135,26 @@ _HTML_HEAD = """<!DOCTYPE html>
 
 _TAB_MONITOR = """
 <div class="panel active" id="p0">
+  <div id="pausedBanner" style="display:none;background:rgba(255,176,32,.12);border:1.5px solid rgba(255,176,32,.45);
+    border-radius:8px;padding:10px 18px;align-items:center;gap:10px;font-size:14px;font-weight:700;color:var(--am)">
+    ⏸ 交易已暂停 — 仍在扫描行情，但不会下新订单。点击右上角「启动交易」恢复。
+  </div>
   <div class="g4">
     <div class="card sc"><div class="lb">胜率</div><div class="vl bl" id="wr">0%</div><div class="sb" id="wl">0W/0L</div></div>
-    <div class="card sc"><div class="lb">总交易</div><div class="vl am" id="totalT">0</div><div class="sb" id="openC">持仓 0</div></div>
+    <div class="card sc"><div class="lb">总交易</div><div class="vl am" id="totalT">0</div><div class="sb" id="openC">持仓 0</div><div class="sb" id="feeStat" style="color:var(--mt);margin-top:2px">累计手续费 -0.00U</div></div>
     <div class="card sc"><div class="lb">信号/拦截</div><div class="vl bl" id="sigN">0</div><div class="sb" id="sigB">拦截 0</div></div>
     <div class="card sc"><div class="lb">扫描模式</div><div class="vl" id="scanMHd" style="font-size:14px">—</div><div class="sb" id="scanCHd">0 个币种</div></div>
   </div>
   <div class="card">
     <div class="ch">风控状态 <span class="bdg ok" id="rBdg">✓ 正常</span></div>
     <div class="g3">
-      <div><div style="font-size:9px;color:var(--mt);margin-bottom:3px">今日亏损</div>
+      <div><div style="font-size:11px;color:var(--mt);margin-bottom:3px">今日亏损</div>
         <div style="font-size:14px;font-weight:700" id="rLoss">0.00 / — USDT</div>
         <div class="rb"><div class="rf" id="rLossBar" style="background:var(--rd);width:0%"></div></div></div>
-      <div><div style="font-size:9px;color:var(--mt);margin-bottom:3px">账户回撤</div>
+      <div><div style="font-size:11px;color:var(--mt);margin-bottom:3px">账户回撤</div>
         <div style="font-size:14px;font-weight:700" id="rDD">0.00%</div>
         <div class="rb"><div class="rf" id="rDDBar" style="background:var(--am);width:0%"></div></div></div>
-      <div><div style="font-size:9px;color:var(--mt);margin-bottom:3px">连续亏损</div>
+      <div><div style="font-size:11px;color:var(--mt);margin-bottom:3px">连续亏损</div>
         <div style="font-size:14px;font-weight:700" id="rCons">0 次</div>
         <div class="rb"><div class="rf" id="rConsBar" style="background:var(--pu);width:0%"></div></div></div>
     </div>
@@ -165,17 +175,17 @@ _TAB_MONITOR = """
     </div>
     <div class="card">
       <div class="ch">最近成交</div>
-      <table><thead><tr><th>币种</th><th>方向</th><th>入场</th><th>出场</th><th>原因</th><th>盈亏</th></tr></thead>
-      <tbody id="tradeTb"><tr><td colspan="6" style="text-align:center;color:var(--mt);padding:14px">暂无</td></tr></tbody></table>
+      <table><thead><tr><th>币种</th><th>方向</th><th>入场</th><th>出场</th><th>原因</th><th>毛利</th><th>手续费</th><th>净利</th></tr></thead>
+      <tbody id="tradeTb"><tr><td colspan="8" style="text-align:center;color:var(--mt);padding:14px">暂无</td></tr></tbody></table>
     </div>
   </div>
   <div class="card"><div class="ch">错误日志</div>
     <div class="logbox" id="logbox"><div class="i">等待运行...</div></div></div>
   <div class="card" style="border-color:rgba(61,142,255,.2)">
     <div class="ch" style="color:var(--bl)">实时诊断
-      <span style="font-weight:400;font-size:10px;color:var(--mt);margin-left:4px">— 为什么没有信号？</span>
+      <span style="font-weight:400;font-size:12px;color:var(--mt);margin-left:4px">— 为什么没有信号？</span>
     </div>
-    <div id="diagBox" style="font-size:11px;line-height:2;color:var(--mt)">等待数据...</div>
+    <div id="diagBox" style="font-size:13px;line-height:2;color:var(--tx)">等待数据...</div>
   </div>
 </div>
 """
@@ -220,7 +230,29 @@ _TAB_PARAMS = """
         <span class="hint">每笔下单USDT金额</span></div>
     </div>
   </div>
-  <div class="card"><div class="ch">合约设置 <span class="am" style="font-weight:400;font-size:10px;margin-left:4px">仅实盘生效，修改杠杆前请平掉所有仓位</span></div>
+  <div class="card" style="border-color:rgba(168,85,247,.3)"><div class="ch" style="color:var(--pu)">⚡ TICK 模式参数 <span class="am" style="font-weight:400;font-size:12px;margin-left:4px">RUN_MODE=tick 时真正生效的参数</span></div>
+    <div class="fr">
+      <div class="field"><label>TICK_LOOKBACK_MS 检测窗口(ms)</label>
+        <input type="number" id="p_TICK_LOOKBACK_MS" step="500" min="500" max="10000">
+        <span class="hint">滑动窗口长度，越短越敏感，默认2000</span></div>
+      <div class="field"><label>TICK_MIN_SPIKE_PCT 最小振幅%</label>
+        <input type="number" id="p_TICK_MIN_SPIKE_PCT" step="0.0005" min="0.001" max="0.02">
+        <span class="hint">针长/价格比例，0.004=0.4%（提高可减少信号）</span></div>
+      <div class="field"><label>TICK_TP_RATIO 止盈比</label>
+        <input type="number" id="p_TICK_TP_RATIO" step="0.05" min="0.2" max="1.0">
+        <span class="hint">止盈=针长×此值，0.6吃更多反弹</span></div>
+      <div class="field"><label>TICK_SL_RATIO 止损比</label>
+        <input type="number" id="p_TICK_SL_RATIO" step="0.05" min="0.1" max="0.5">
+        <span class="hint">止损=针尖下方 针长×此值，紧止损</span></div>
+      <div class="field"><label>TICK_COOLDOWN_MS 冷却(ms)</label>
+        <input type="number" id="p_TICK_COOLDOWN_MS" step="1000" min="1000" max="30000">
+        <span class="hint">同币两次信号最小间隔，越大越少交易</span></div>
+      <div class="field"><label>TICK_MAX_HOLD_MS 最长持仓(ms)</label>
+        <input type="number" id="p_TICK_MAX_HOLD_MS" step="500" min="1000" max="10000">
+        <span class="hint">超时强制平仓，默认3000=3秒</span></div>
+    </div>
+  </div>
+  <div class="card"><div class="ch">合约设置 <span class="am" style="font-weight:400;font-size:12px;margin-left:4px">仅实盘生效，修改杠杆前请平掉所有仓位</span></div>
     <div class="fr">
       <div class="field"><label>LEVERAGE 杠杆倍数</label>
         <input type="number" id="p_LEVERAGE" step="1" min="1" max="125">
@@ -248,11 +280,11 @@ _TAB_PARAMS = """
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <button class="primary" onclick="applyParams()">应用参数（热更新）</button>
     <button onclick="loadParams()">重新读取</button>
-    <span id="paramMsg" style="font-size:11px"></span>
+    <span id="paramMsg" style="font-size:13px"></span>
   </div>
   <div class="card" style="background:rgba(255,176,32,.03);border-color:rgba(255,176,32,.15)">
     <div class="ch" style="color:var(--am)">当前生效参数</div>
-    <pre id="cfgSnap" style="font-size:10px;color:var(--mt);line-height:1.9;white-space:pre-wrap"></pre>
+    <pre id="cfgSnap" style="font-size:12px;color:var(--mt2);line-height:1.8;white-space:pre-wrap"></pre>
   </div>
 </div>
 """
@@ -261,7 +293,7 @@ _TAB_GRID = """
 <div class="panel" id="p2">
   <div class="card">
     <div class="ch">搜索空间
-      <span style="font-weight:400;font-size:10px;color:var(--mt);margin-left:4px">— 对所有监控币种并行回测</span>
+      <span style="font-weight:400;font-size:12px;color:var(--mt);margin-left:4px">— 对所有监控币种并行回测</span>
     </div>
     <div class="fr">
       <div class="field"><label>SPIKE_VS_ATR 针/ATR倍数</label>
@@ -284,11 +316,11 @@ _TAB_GRID = """
     </div>
     <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <div class="field" style="flex-direction:row;align-items:center;gap:8px;margin:0">
-        <label style="white-space:nowrap;font-size:10px;color:var(--mt)">回测天数</label>
+        <label style="white-space:nowrap;font-size:12px;color:var(--mt)">回测天数</label>
         <input type="number" id="g_days" value="2" min="1" max="7" style="width:60px">
       </div>
       <div class="field" style="flex-direction:row;align-items:center;gap:8px;margin:0">
-        <label style="white-space:nowrap;font-size:10px;color:var(--mt)">优化目标</label>
+        <label style="white-space:nowrap;font-size:12px;color:var(--mt)">优化目标</label>
         <select id="g_target">
           <option value="expectancy">期望值 expectancy</option>
           <option value="win_rate">胜率 win_rate</option>
@@ -297,20 +329,20 @@ _TAB_GRID = """
         </select>
       </div>
       <button class="primary" id="gridBtn" onclick="startGrid()">开始搜索</button>
-      <span id="gCombo" style="font-size:10px;color:var(--mt)"></span>
+      <span id="gCombo" style="font-size:12px;color:var(--mt)"></span>
     </div>
   </div>
   <div class="card" id="gProgCard" style="display:none">
     <div class="ch">进度 <span id="gPct" class="am">0%</span>
-      <span id="gStatus" style="font-weight:400;color:var(--mt);font-size:10px;margin-left:8px"></span>
+      <span id="gStatus" style="font-weight:400;color:var(--mt);font-size:12px;margin-left:8px"></span>
     </div>
     <div class="prog-bar"><div class="prog-fill" id="gBar" style="width:0%"></div></div>
-    <div id="gLog" style="margin-top:8px;font-size:10px;color:var(--mt);line-height:1.9"></div>
+    <div id="gLog" style="margin-top:8px;font-size:12px;color:var(--mt);line-height:1.9"></div>
   </div>
   <div class="card" id="gAggCard" style="display:none">
     <div class="ch">汇总 Top10
-      <span style="font-weight:400;font-size:10px;color:var(--mt);margin-left:4px">— 跨所有币种</span>
-      <button class="success" style="margin-left:auto;padding:3px 10px;font-size:10px" onclick="applyBest()">应用最优</button>
+      <span style="font-weight:400;font-size:12px;color:var(--mt);margin-left:4px">— 跨所有币种</span>
+      <button class="success" style="margin-left:auto;padding:3px 10px;font-size:12px" onclick="applyBest()">应用最优</button>
     </div>
     <div style="overflow-x:auto">
     <table><thead><tr>
@@ -374,11 +406,11 @@ FETUSDT</textarea>
   </div>
   <div class="card">
     <div class="ch">当前活跃币种
-      <span style="margin-left:auto;font-size:10px;color:var(--mt)">
+      <span style="margin-left:auto;font-size:12px;color:var(--mt)">
         下次刷新: <span class="am" id="nextRf">—</span></span>
     </div>
     <div id="symPills" style="min-height:32px;margin-bottom:8px"></div>
-    <div style="font-size:10px;color:var(--mt)">模式: <span class="am" id="modeLabel">—</span></div>
+    <div style="font-size:12px;color:var(--mt)">模式: <span class="am" id="modeLabel">—</span></div>
   </div>
   <div class="card" id="gainerCard" style="display:none">
     <div class="ch">涨幅榜明细（最近一次扫描）</div>
@@ -411,15 +443,16 @@ function renderAll(d){
 
 function renderHeader(d){
   document.getElementById('hDot').className='dot'+(d.running?' on':'');
+  _updateTradingBtn(d.trading_paused||false);
+  var banner=document.getElementById('pausedBanner');
+  if(banner) banner.style.display=(d.trading_paused?'flex':'none');
   document.getElementById('hTime').textContent=d.last_tick?new Date(d.last_tick*1000).toLocaleTimeString('zh'):'';
-  var dry=d.dry_run;
   var mb=document.getElementById('modeBadge');
-  mb.textContent=dry?'空跑 DRY-RUN':'实盘 LIVE';
-  mb.className='mbadge '+(dry?'dry':'live');
+  mb.textContent='实盘 LIVE';
+  mb.className='mbadge live';
+  // mb 模式已在上面固定
   var btn=document.getElementById('modeBtn');
-  if(btn){ btn.textContent=dry?'切换实盘':'切换空跑';
-    btn.style.borderColor=dry?'var(--gr)':'var(--am)';
-    btn.style.color=dry?'var(--gr)':'var(--am)'; }
+  if(btn){ btn.style.display='none'; btn.textContent=''; }
   var lb=document.getElementById('levBadge');
   if(lb&&d.live_config){
     var lev=d.live_config.LEVERAGE||5;
@@ -445,8 +478,10 @@ function renderHeader(d){
   document.getElementById('hSymN').textContent=(d.symbols_active||[]).length;
   var dp=d.risk?d.risk.daily_pnl||0:0;
   var tp=d.stats?d.stats.total_pnl||0:0;
+  var tf=d.stats?d.stats.total_fee||0:0;
   var dpEl=document.getElementById('hDay'); dpEl.textContent=fmt(dp); dpEl.className='vl '+(dp>=0?'gr':'rd');
   var tpEl=document.getElementById('hTot'); tpEl.textContent=fmt(tp); tpEl.className='vl '+(tp>=0?'gr':'rd');
+  var fEl=document.getElementById('hFee'); if(fEl){ fEl.textContent='-'+tf.toFixed(4); }
 }
 
 function renderMonitor(d){
@@ -457,6 +492,7 @@ function renderMonitor(d){
   document.getElementById('wl').textContent=(d.stats&&d.stats.win||0)+'W/'+(d.stats&&d.stats.loss||0)+'L';
   document.getElementById('totalT').textContent=d.stats&&d.stats.total_trades||0;
   document.getElementById('openC').textContent='持仓 '+(d.stats&&d.stats.open_count||0);
+  var fs=document.getElementById('feeStat'); if(fs) fs.textContent='累计手续费 -'+(d.stats&&d.stats.total_fee||0).toFixed(2)+'U';
   document.getElementById('sigN').textContent=d.signals_found||0;
   document.getElementById('sigB').textContent='拦截 '+(d.signals_blocked||0);
   document.getElementById('scanMHd').textContent=(d.scan_mode||'—').toUpperCase();
@@ -491,13 +527,17 @@ function renderMonitor(d){
     }).join('');
   var tb=document.getElementById('tradeTb');
   tb.innerHTML=!d.recent_trades||!d.recent_trades.length
-    ?'<tr><td colspan="6" style="text-align:center;color:var(--mt);padding:14px">暂无</td></tr>'
+    ?'<tr><td colspan="8" style="text-align:center;color:var(--mt);padding:14px">暂无</td></tr>'
     :[...d.recent_trades].reverse().map(function(t){
-      var pc=t.pnl_usdt>=0?'var(--gr)':'var(--rd)';
-      return '<tr><td class="am">'+t.symbol+'</td><td><span class="tag '+t.direction.toLowerCase()+'">'+t.direction+'</span></td>'
+      var netPc=t.pnl_usdt>=0?'var(--gr)':'var(--rd)';
+      var grossPc=(t.gross_pnl||0)>=0?'var(--gr)':'var(--rd)';
+      var vStatus=t.verified?'<span style="color:var(--gr);font-size:12px">✓</span>':'<span style="color:var(--mt);font-size:12px">⏳</span>';
+      return '<tr><td class="am">'+t.symbol+' '+vStatus+'</td><td><span class="tag '+t.direction.toLowerCase()+'">'+t.direction+'</span></td>'
         +'<td>'+fmtP(t.entry_price)+'</td><td>'+fmtP(t.close_price)+'</td>'
         +'<td><span class="tag '+t.close_reason.toLowerCase()+'">'+t.close_reason+'</span></td>'
-        +'<td style="color:'+pc+';font-weight:700">'+fmt(t.pnl_usdt)+'</td></tr>';
+        +'<td style="color:'+grossPc+'">'+fmt(t.gross_pnl||0)+'</td>'
+        +'<td style="color:var(--mt)">-'+(t.fee_usdt||0).toFixed(4)+'</td>'
+        +'<td style="color:'+netPc+';font-weight:700">'+fmt(t.pnl_usdt)+'</td></tr>';
     }).join('');
   if(d.errors&&d.errors.length)
     document.getElementById('logbox').innerHTML=d.errors.map(function(e){return '<div class="e">✗ '+e+'</div>';}).join('');
@@ -513,7 +553,7 @@ function renderMonitor(d){
       '📡 <span style="color:var(--tx)">'+dg.symbol+'</span>  open='+((dg.last_open||0).toFixed(6))+'  high='+((dg.last_high||0).toFixed(6))+'  low='+((dg.last_low||0).toFixed(6))+'  close='+((dg.last_close||0).toFixed(6)),
       '📏 下影线='+lw.toFixed(6)+'  上影线='+uw.toFixed(6)+'  ATR='+a.toFixed(6),
       '🔍 针/实体='+rb.toFixed(2)+'(需≥'+sr+') '+ck(pb)+'  针/ATR='+ra.toFixed(2)+'(需≥'+sa+') '+ck(pa)+'  回归='+rv.toFixed(2)+'(需'+mr+'~'+xr+') '+ck(pr),
-      d.signals_found>0?'✅ <span class="gr">已发现'+d.signals_found+'个信号</span>'+(d.dry_run?' (空跑模拟)':'')
+      d.signals_found>0?'✅ <span class="gr">已发现'+d.signals_found+'个信号</span>'
         :'⏳ <span class="am">暂无信号</span>'
     ];
     document.getElementById('diagBox').innerHTML=lines.join('<br>');
@@ -524,14 +564,14 @@ function renderMonitor(d){
 var _pEditing=false,_pTimer=null;
 function _lockP(){_pEditing=true;clearTimeout(_pTimer);_pTimer=setTimeout(function(){_pEditing=false;},10000);}
 (function(){
-  var ids=['p_LEVERAGE','p_SPIKE_VS_ATR','p_MIN_SPIKE_PIPS','p_MIN_RECOVERY','p_MAX_RECOVERY',
+  var ids=['p_LEVERAGE','p_SPIKE_VS_ATR','p_MIN_SPIKE_PIPS','p_MIN_RECOVERY','p_MAX_RECOVERY','p_TICK_LOOKBACK_MS','p_TICK_MIN_SPIKE_PCT','p_TICK_TP_RATIO','p_TICK_SL_RATIO','p_TICK_COOLDOWN_MS','p_TICK_MAX_HOLD_MS',
     'p_TP_RATIO','p_SL_RATIO','p_SL_ATR_MULT','p_MIN_RR','p_MAX_HOLD_SECONDS','p_ORDER_USDT',
     'p_DAILY_LOSS_LIMIT_USDT','p_MAX_DRAWDOWN_PCT','p_MAX_CONSECUTIVE_LOSSES','p_MAX_OPEN_ORDERS'];
   ids.forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('focus',_lockP);});
 })();
 function syncParams(cfg){
   if(_pEditing)return;
-  var keys=['LEVERAGE','SPIKE_VS_ATR','MIN_SPIKE_PIPS','MIN_RECOVERY','MAX_RECOVERY',
+  var keys=['LEVERAGE','SPIKE_VS_ATR','MIN_SPIKE_PIPS','MIN_RECOVERY','MAX_RECOVERY','TICK_LOOKBACK_MS','TICK_MIN_SPIKE_PCT','TICK_TP_RATIO','TICK_SL_RATIO','TICK_COOLDOWN_MS','TICK_MAX_HOLD_MS',
     'TP_RATIO','SL_RATIO','SL_ATR_MULT','MIN_RR','MAX_HOLD_SECONDS','ORDER_USDT',
     'DAILY_LOSS_LIMIT_USDT','MAX_DRAWDOWN_PCT','MAX_CONSECUTIVE_LOSSES','MAX_OPEN_ORDERS'];
   keys.forEach(function(k){var el=document.getElementById('p_'+k);if(el&&document.activeElement!==el)el.value=cfg[k]!=null?cfg[k]:'';});
@@ -542,7 +582,7 @@ function syncParams(cfg){
 }
 function loadParams(){if(_D.live_config)syncParams(_D.live_config);}
 function applyParams(){
-  var keys=['LEVERAGE','SPIKE_VS_ATR','MIN_SPIKE_PIPS','MIN_RECOVERY','MAX_RECOVERY',
+  var keys=['LEVERAGE','SPIKE_VS_ATR','MIN_SPIKE_PIPS','MIN_RECOVERY','MAX_RECOVERY','TICK_LOOKBACK_MS','TICK_MIN_SPIKE_PCT','TICK_TP_RATIO','TICK_SL_RATIO','TICK_COOLDOWN_MS','TICK_MAX_HOLD_MS',
     'TP_RATIO','SL_RATIO','SL_ATR_MULT','MIN_RR','MAX_HOLD_SECONDS','ORDER_USDT',
     'DAILY_LOSS_LIMIT_USDT','MAX_DRAWDOWN_PCT','MAX_CONSECUTIVE_LOSSES','MAX_OPEN_ORDERS'];
   var u={};
@@ -617,7 +657,7 @@ function renderGrid(d){
         +'<td class="'+((r.m.net_win_rate||0)>=50?'gr':'rd')+'">'+(r.m.net_win_rate!=null?r.m.net_win_rate+'%':'—')+'</td>'
         +'<td class="'+((r.m.net_total_pnl||0)>0?'gr':'rd')+'" style="font-weight:700">'+(r.m.net_total_pnl!=null?r.m.net_total_pnl.toFixed(4):'—')+'</td>'
         +'<td class="am">'+(r.m.symbols_covered||'—')+'</td>'
-        +'<td><button style="padding:2px 8px;font-size:9px" onclick="applyRow('+i+')">应用</button></td></tr>';
+        +'<td><button style="padding:2px 8px;font-size:11px" onclick="applyRow('+i+')">应用</button></td></tr>';
     }).join('');
   }
   if(d.grid_sym_results&&Object.keys(d.grid_sym_results).length){
@@ -635,10 +675,10 @@ function renderGrid(d){
           +'<td class="'+(r.m.win_rate>=55?'gr':'rd')+'">'+r.m.win_rate+'%</td>'
           +'<td class="'+(r.m.total_pnl>0?'gr':'rd')+'">'+r.m.total_pnl.toFixed(4)+'</td>'
           +'<td class="'+((r.m.net_total_pnl||0)>0?'gr':'rd')+'" style="font-weight:700">'+(r.m.net_total_pnl!=null?r.m.net_total_pnl.toFixed(4):'—')+'</td>'
-          +'<td><button style="padding:2px 8px;font-size:9px" data-sym="'+sym+'" data-idx="'+i+'" onclick="applySymRowBtn(this)">应用</button></td></tr>';
+          +'<td><button style="padding:2px 8px;font-size:11px" data-sym="'+sym+'" data-idx="'+i+'" onclick="applySymRowBtn(this)">应用</button></td></tr>';
       }).join('');
       html+='<div class="card" style="margin-top:0"><div class="ch"><span class="am">'+sym+'</span>'
-        +'<span style="font-weight:400;color:var(--mt);font-size:10px;margin-left:6px">Top 5</span></div>'
+        +'<span style="font-weight:400;color:var(--mt);font-size:12px;margin-left:6px">Top 5</span></div>'
         +'<div style="overflow-x:auto"><table><thead><tr>'
         +'<th>#</th><th>ATR</th><th>MinRec</th><th>MaxRec</th><th>TP</th><th>SL</th><th>SL-ATR</th><th>HOLD</th>'
         +'<th>N</th><th>胜率</th><th>毛PnL</th><th>净PnL</th><th></th>'
@@ -736,8 +776,28 @@ function applySymbols(){
 function forceRescan(){post('/api/force_rescan',{}).then(function(){
   var msg=document.getElementById('symMsg');msg.textContent='✓ 重新扫描中...';msg.style.color='var(--am)';
   setTimeout(function(){msg.textContent='';},4000);});}
-function toggleMode(){post('/api/set_mode',{dry_run:!_D.dry_run}).then(function(d){if(!d.ok)alert('切换失败');});}
+
 function resetCircuit(){post('/api/reset_circuit',{}).then(function(d){console.log(d);});}
+function toggleTrading(){
+  post('/api/toggle_trading',{}).then(function(d){
+    if(!d.ok) alert('操作失败');
+  });
+}
+function _updateTradingBtn(paused){
+  var btn=document.getElementById('tradingBtn');
+  if(!btn)return;
+  if(paused){
+    btn.textContent='▶ 启动交易';
+    btn.style.borderColor='var(--am)';
+    btn.style.color='var(--am)';
+    btn.style.background='rgba(255,176,32,.10)';
+  } else {
+    btn.textContent='⏸ 暂停交易';
+    btn.style.borderColor='var(--gr)';
+    btn.style.color='var(--gr)';
+    btn.style.background='rgba(0,212,138,.10)';
+  }
+}
 function post(url,body){
   return fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){return r.json();}).catch(function(e){return {ok:false,error:String(e)};});
@@ -778,14 +838,18 @@ async def handle_stream(req):
                 for t in pm.get_recent_trades(15):
                     recent_trades.append({"id":t.id,"symbol":t.symbol,"direction":t.direction,
                         "entry_price":t.entry_price,"close_price":t.close_price,
-                        "close_reason":t.close_reason,"pnl_usdt":t.pnl_usdt})
+                        "close_reason":t.close_reason,"pnl_usdt":t.pnl_usdt,
+                        "gross_pnl":getattr(t,"gross_pnl",t.pnl_usdt),
+                        "fee_usdt":getattr(t,"fee_usdt",0.0),
+                        "verified":getattr(t,"entry_verified",False) and getattr(t,"exit_verified",False)})
             nri,gd=0,[]
             if scanner:
                 interval=getattr(cfg_module,"AUTO_REFRESH_SEC",900)
                 nri=max(0,interval-(time.time()-scanner._last_refresh))
                 gd=scanner.last_scan_detail
             payload={
-                "running":STATE.get("running",False),"dry_run":STATE.get("dry_run",False),
+                "running":STATE.get("running",False),
+                "trading_paused":STATE.get("trading_paused",False),
                 "scan_mode":STATE.get("scan_mode","single"),
                 "symbols_active":STATE.get("symbols_active",[]),
                 "prices":STATE.get("prices",{}),
@@ -825,6 +889,14 @@ async def handle_set_params(req):
         return web.json_response({"ok":True,"changed":list(updates.keys())})
     except Exception as e: return web.json_response({"ok":False,"error":str(e)})
 
+async def handle_toggle_trading(req):
+    paused = STATE.get("trading_paused", False)
+    STATE["trading_paused"] = not paused
+    new_state = STATE["trading_paused"]
+    action = "暂停" if new_state else "启动"
+    logger.info(f"交易{action} (via dashboard)")
+    return web.json_response({"ok": True, "paused": new_state})
+
 async def handle_reset_circuit(req):
     rm=STATE.get("risk")
     if rm: rm.manual_reset(); return web.json_response({"ok":True})
@@ -841,8 +913,7 @@ async def handle_force_rescan(req):
 
 async def handle_set_mode(req):
     try:
-        body=await req.json(); dry=bool(body.get("dry_run",False))
-        cfg_module.DRY_RUN=dry; STATE["dry_run"]=dry
+        return aiohttp.web.json_response({"ok":False,"error":"空跑模式已移除"})
         from core.exchange import BinanceREST
         if dry:
             _oid=[9000]
@@ -1072,6 +1143,7 @@ async def run_web():
     app.router.add_post("/api/force_rescan",handle_force_rescan)
     app.router.add_post("/api/set_mode",handle_set_mode)
     app.router.add_post("/api/grid_search",handle_grid_search)
+    app.router.add_post("/api/toggle_trading",handle_toggle_trading)
     runner=web.AppRunner(app); await runner.setup()
     site=web.TCPSite(runner,cfg_module.WEB_HOST,cfg_module.WEB_PORT)
     await site.start()

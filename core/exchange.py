@@ -444,6 +444,59 @@ class BinanceREST:
             "symbol": symbol, "orderId": order_id
         }, signed=True)
 
+    async def query_order(self, symbol: str, order_id: int) -> dict:
+        """
+        查询单个订单的完整信息
+        返回包含 avgPrice, executedQty, status 等最终字段
+        """
+        return await self._request("GET", "/fapi/v1/order", {
+            "symbol":  symbol,
+            "orderId": order_id
+        }, signed=True)
+
+    async def get_user_trades(self, symbol: str, order_id: int = None, limit: int = 20) -> list:
+        """
+        查询某订单的实际成交明细
+        一个市价单可能分多笔成交(特别是大单)
+        返回: [{price, qty, commission, commissionAsset, ...}]
+        """
+        params = {"symbol": symbol, "limit": limit}
+        if order_id:
+            params["orderId"] = order_id
+        return await self._request("GET", "/fapi/v1/userTrades", params, signed=True)
+
+    async def get_fill_info(self, symbol: str, order_id: int) -> tuple:
+        """
+        拿到订单的真实成交信息
+        返回: (avg_price, total_qty, total_fee_usdt, fills_count)
+        若查询失败返回 (0, 0, 0, 0)
+        """
+        try:
+            trades = await self.get_user_trades(symbol, order_id)
+            if not trades:
+                return (0.0, 0.0, 0.0, 0)
+            total_qty = 0.0
+            total_cost = 0.0   # price * qty 之和
+            total_fee = 0.0
+            for t in trades:
+                p = float(t.get("price", 0))
+                q = float(t.get("qty", 0))
+                fee = float(t.get("commission", 0))
+                fee_asset = t.get("commissionAsset", "USDT")
+                total_qty += q
+                total_cost += p * q
+                # 只统计 USDT 手续费，BNB 抵扣的需单独换算
+                if fee_asset == "USDT":
+                    total_fee += fee
+                elif fee_asset == "BNB":
+                    # BNB 抵扣: 取近似换算（可选优化）
+                    total_fee += fee * 0  # 用户打开BNB抵扣时fee已是USDT等值，这里简化
+            avg = total_cost / total_qty if total_qty > 0 else 0
+            return (avg, total_qty, total_fee, len(trades))
+        except Exception as e:
+            logger.warning(f"查询订单成交明细失败 {symbol} {order_id}: {e}")
+            return (0.0, 0.0, 0.0, 0)
+
     async def get_open_orders(self, symbol: str = None) -> list:
         params = {"symbol": symbol} if symbol else {}
         return await self._request("GET", "/fapi/v1/openOrders", params, signed=True)

@@ -34,7 +34,13 @@ class Position:
     status: str = "OPEN"
     close_price: float = 0.0
     close_reason: str = ""
-    pnl_usdt: float = 0.0
+    pnl_usdt: float = 0.0    # 净盈亏（扣手续费后）
+    gross_pnl: float = 0.0   # 毛盈亏（不扣手续费）
+    fee_usdt: float = 0.0    # 本次开+平的真实手续费(从币安查询)
+    signal_price: float = 0.0  # 信号触发时的价格（对比用）
+    entry_verified: bool = False  # 入场价是否已通过真实成交明细确认
+    exit_verified: bool = False   # 出场价是否已通过真实成交明细确认
+    close_order_id: Optional[int] = None
     signal_score: float = 0.0
     rr_ratio: float = 0.0
     spike_length: float = 0.0
@@ -43,11 +49,24 @@ class Position:
     def age_seconds(self) -> float:
         return time.time() - self.open_time
 
-    def calc_pnl(self, exit_price: float) -> float:
+    def calc_gross_pnl(self, exit_price: float) -> float:
+        """毛盈亏(不扣手续费)"""
         if self.direction == "BUY":
             return (exit_price - self.entry_price) * self.quantity
         else:
             return (self.entry_price - exit_price) * self.quantity
+
+    def calc_fee(self, exit_price: float, fee_rate: float) -> float:
+        """开+平两笔手续费之和"""
+        entry_notional = self.entry_price * self.quantity
+        exit_notional  = exit_price * self.quantity
+        return (entry_notional + exit_notional) * fee_rate
+
+    def calc_pnl(self, exit_price: float, fee_rate: float = 0.00045) -> float:
+        """净盈亏(扣手续费)"""
+        gross = self.calc_gross_pnl(exit_price)
+        fee   = self.calc_fee(exit_price, fee_rate)
+        return gross - fee
 
 
 class PositionManager:
@@ -56,7 +75,9 @@ class PositionManager:
         self.cfg = config
         self._positions: list[Position] = []
         self._pos_counter = 0
-        self._total_pnl   = 0.0
+        self._total_pnl   = 0.0   # 累计净盈亏（已扣手续费）
+        self._total_fee   = 0.0   # 累计手续费
+        self._total_gross = 0.0   # 累计毛盈亏
         self._win_count   = 0
         self._loss_count  = 0
         self._filters: Dict[str, dict] = {}
@@ -117,7 +138,9 @@ class PositionManager:
             "win":          self._win_count,
             "loss":         self._loss_count,
             "win_rate":     round(self._win_count / total * 100, 1) if total else 0,
-            "total_pnl":    round(self._total_pnl, 4),
+            "total_pnl":    round(self._total_pnl, 4),   # 净
+            "total_gross":  round(self._total_gross, 4), # 毛
+            "total_fee":    round(self._total_fee, 4),   # 手续费
             "open_count":   len(self.open_positions),
         }
 
@@ -219,8 +242,14 @@ class PositionManager:
                 spike_length=signal.spike_length,
                 peak_price=filled_price,  # 初始化为入场价
             )
+            pos.signal_price = signal.entry_price
             self._positions.append(pos)
             logger.info(f"Position #{pos.id} {sym} opened @ {filled_price:.6f}")
+
+            # 异步查询真实成交价（延迟500ms让币安成交完成）
+            import asyncio as _aio
+            _aio.create_task(self._verify_entry_fill(pos))
+
             return pos
 
         except Exception as e:
@@ -338,24 +367,106 @@ class PositionManager:
             f"Closing #{pos.id} {pos.symbol} {pos.direction} @ {exit_price:.6f} "
             f"[{reason}] age={pos.age_seconds:.1f}s"
         )
+        close_order_id = None
         try:
-            await self.ex.place_market_order(
+            close_order = await self.ex.place_market_order(
                 pos.symbol, close_side, pos.quantity, reduce_only=True
             )
+            close_order_id = close_order.get("orderId")
+            pos.close_order_id = close_order_id
         except Exception as e:
             logger.error(f"Close failed: {e}")
 
-        pnl = pos.calc_pnl(exit_price)
+        fee_rate = getattr(self.cfg, "FEE_RATE", 0.00045)
+        gross    = pos.calc_gross_pnl(exit_price)
+        fee      = pos.calc_fee(exit_price, fee_rate)
+        net_pnl  = gross - fee
+
         pos.status       = "CLOSED"
         pos.close_price  = exit_price
         pos.close_reason = reason
-        pos.pnl_usdt     = round(pnl, 4)
-        self._total_pnl += pnl
-        if pnl > 0:
+        pos.gross_pnl    = round(gross, 4)
+        pos.fee_usdt     = round(fee, 4)
+        pos.pnl_usdt     = round(net_pnl, 4)
+        self._total_pnl += net_pnl
+        self._total_fee += fee
+        self._total_gross += gross
+        if net_pnl > 0:
             self._win_count  += 1
         else:
             self._loss_count += 1
-        logger.info(f"#{pos.id} closed | PnL={pnl:+.4f} USDT")
+        logger.info(
+            f"#{pos.id} closed | 毛={gross:+.4f} 估算手续费={fee:.4f} "
+            f"估算净={net_pnl:+.4f} USDT (等待真实成交确认...)"
+        )
+
+        # 异步查询真实成交价，确认后会重算 pnl
+        if close_order_id:
+            import asyncio as _aio
+            _aio.create_task(self._verify_exit_fill(pos, close_order_id))
+
+    async def _verify_entry_fill(self, pos: Position):
+        """等待开仓订单成交并更新真实入场价"""
+        import asyncio
+        await asyncio.sleep(0.8)  # 等成交
+        if not pos.order_id:
+            return
+        avg, qty, fee, n = await self.ex.get_fill_info(pos.symbol, pos.order_id)
+        if avg > 0 and qty > 0:
+            old_entry = pos.entry_price
+            pos.entry_price = avg
+            pos.quantity = qty  # 以真实成交量为准
+            pos.fee_usdt += fee
+            pos.entry_verified = True
+            diff_pct = abs(avg - old_entry) / old_entry * 100 if old_entry else 0
+            logger.info(
+                f"#{pos.id} 入场确认: {old_entry:.6f} → {avg:.6f} "
+                f"(差 {diff_pct:.3f}%) 开仓费={fee:.4f}"
+            )
+
+    async def _verify_exit_fill(self, pos: Position, close_order_id: int):
+        """等待平仓订单成交并重算真实净盈亏"""
+        import asyncio
+        await asyncio.sleep(0.8)
+        avg, qty, fee, n = await self.ex.get_fill_info(pos.symbol, close_order_id)
+        if avg <= 0 or qty <= 0:
+            return
+        # 更新真实出场价
+        old_close = pos.close_price
+        pos.close_price = avg
+        pos.fee_usdt += fee
+        pos.exit_verified = True
+
+        # 重新计算盈亏（用真实 entry + 真实 exit + 真实 fee）
+        if pos.direction == "BUY":
+            gross = (avg - pos.entry_price) * qty
+        else:
+            gross = (pos.entry_price - avg) * qty
+        net = gross - pos.fee_usdt
+
+        # 从 total_pnl 里减掉之前估算的，加上真实的
+        old_net = pos.pnl_usdt
+        self._total_pnl += (net - old_net)
+        self._total_fee += fee   # 只加出场那次的费，入场已加
+        self._total_gross += (gross - pos.gross_pnl)
+
+        pos.gross_pnl = round(gross, 4)
+        pos.pnl_usdt  = round(net, 4)
+
+        # 胜负可能反转（原本估算盈利，实际亏损）
+        if old_net > 0 and net <= 0:
+            self._win_count -= 1
+            self._loss_count += 1
+        elif old_net <= 0 and net > 0:
+            self._loss_count -= 1
+            self._win_count += 1
+
+        diff_pct = abs(avg - old_close) / old_close * 100 if old_close else 0
+        logger.info(
+            f"#{pos.id} 出场确认: {old_close:.6f} → {avg:.6f} "
+            f"(滑点 {diff_pct:.3f}%) 平仓费={fee:.4f} "
+            f"净={net:+.4f}U (原估算{old_net:+.4f})"
+        )
 
     def get_recent_trades(self, n: int = 20) -> list[Position]:
         return [p for p in self._positions if p.status == "CLOSED"][-n:]

@@ -63,15 +63,8 @@ class TickSpikeDetector:
         self.symbol = symbol
         self.cfg = config
 
-        # 配置参数（带默认值）
-        self.lookback_ms       = getattr(config, "TICK_LOOKBACK_MS",     2000)   # 2秒窗口
-        self.atr_window_sec    = getattr(config, "TICK_ATR_WINDOW_SEC",  60)     # 1分钟算ATR
-        self.min_spike_pct     = getattr(config, "TICK_MIN_SPIKE_PCT",   0.002)  # 最小0.2%振幅
-        self.spike_vs_atr      = getattr(config, "SPIKE_VS_ATR",         2.5)    # 针/ATR倍数
-        self.tp_ratio          = getattr(config, "TICK_TP_RATIO",        0.40)   # 吃针长40%反弹
-        self.sl_ratio          = getattr(config, "TICK_SL_RATIO",        0.25)   # 针尖继续 25%针长 就止损
-        self.min_rr            = getattr(config, "MIN_RR",               1.0)
-        self.cooldown_ms       = getattr(config, "TICK_COOLDOWN_MS",     3000)   # 同币种两次信号最少间隔
+        # 参数从 config 动态读取，支持热更新
+        # 不再在 __init__ 里缓存，每次 on_trade 读最新值
         self.max_trades        = 5000
 
         # 状态
@@ -83,6 +76,38 @@ class TickSpikeDetector:
         self._sec_buckets: dict = {}  # sec_ts → (high, low)
         self._atr_cache = 0.0
         self._atr_updated_at = 0
+
+    @property
+    def lookback_ms(self):
+        return getattr(self.cfg, "TICK_LOOKBACK_MS", 2000)
+
+    @property
+    def atr_window_sec(self):
+        return getattr(self.cfg, "TICK_ATR_WINDOW_SEC", 60)
+
+    @property
+    def min_spike_pct(self):
+        return getattr(self.cfg, "TICK_MIN_SPIKE_PCT", 0.002)
+
+    @property
+    def spike_vs_atr(self):
+        return getattr(self.cfg, "SPIKE_VS_ATR", 2.5)
+
+    @property
+    def tp_ratio(self):
+        return getattr(self.cfg, "TICK_TP_RATIO", 0.40)
+
+    @property
+    def sl_ratio(self):
+        return getattr(self.cfg, "TICK_SL_RATIO", 0.25)
+
+    @property
+    def min_rr(self):
+        return getattr(self.cfg, "MIN_RR", 1.0)
+
+    @property
+    def cooldown_ms(self):
+        return getattr(self.cfg, "TICK_COOLDOWN_MS", 3000)
 
     # ──────────────────────────────────────────────────
     def on_trade(self, price: float, qty: float, time_ms: int, is_buyer_maker: bool) -> Optional[TickSignal]:

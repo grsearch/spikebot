@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 STATE = {
     "running":          False,
+    "trading_paused":   False,
     "dry_run":          False,
     "scan_mode":        "single",
     "symbols_active":   [],
@@ -59,7 +60,7 @@ def _snapshot_config() -> dict:
         "MAX_CONSECUTIVE_LOSSES", "MAX_DAILY_TRADES",
         "AUTO_MIN_GAIN_PCT", "AUTO_MIN_VOLUME_USDT",
         "AUTO_MAX_SYMBOLS", "AUTO_REFRESH_SEC",
-        "DRY_RUN", "LEVERAGE", "MARGIN_TYPE",
+        "LEVERAGE", "MARGIN_TYPE",
         "USE_TRAILING_TP", "TRAIL_ACTIVATE_PCT", "TRAIL_RETRACE_PCT",
         "BE_ACTIVATE_PCT", "MARKET_FILTER", "FEE_RATE",
         "RUN_MODE", "TICK_LOOKBACK_MS", "TICK_MIN_SPIKE_PCT",
@@ -138,17 +139,21 @@ class SymbolWorker:
                 f"tip={signal.spike_tip:.6f} entry={signal.entry_price:.6f} "
                 f"tp={signal.take_profit:.6f} sl={signal.stop_loss:.6f}"
             )
-            can_trade, reason = self.rm.can_trade()
-            if STATE["dry_run"]:
-                if can_trade:
+            if STATE.get("trading_paused", False):
+                STATE["signals_blocked"] += 1
+                logger.info(f"[{self.symbol}] 交易已暂停，信号被忽略")
+            else:
+                can_trade, reason = self.rm.can_trade()
+                if STATE["dry_run"]:
+                    if can_trade:
+                        await self.pm.try_open(signal, self.symbol)
+                    else:
+                        STATE["signals_blocked"] += 1
+                elif can_trade:
                     await self.pm.try_open(signal, self.symbol)
                 else:
                     STATE["signals_blocked"] += 1
-            elif can_trade:
-                await self.pm.try_open(signal, self.symbol)
-            else:
-                STATE["signals_blocked"] += 1
-                logger.warning(f"[{self.symbol}] 风控拦截: {reason}")
+                    logger.warning(f"[{self.symbol}] 风控拦截: {reason}")
 
         await self._monitor(price)
 
@@ -182,7 +187,6 @@ class TradingBot:
 
         STATE["positions"]   = self.pm
         STATE["risk"]        = self.rm
-        STATE["dry_run"]     = getattr(cfg_module, "DRY_RUN", False)
         STATE["scan_mode"]   = getattr(cfg_module, "SCAN_MODE", "single")
         STATE["live_config"] = _snapshot_config()
 
@@ -197,10 +201,9 @@ class TradingBot:
         except Exception as e:
             logger.warning(f"获取余额失败: {e}")
 
-        dry = STATE["dry_run"]
         lev = getattr(cfg_module, "LEVERAGE", 5)
         mt  = getattr(cfg_module, "MARGIN_TYPE", "ISOLATED")
-        logger.info(f"模式: {'DRY-RUN 空跑' if dry else 'LIVE 实盘'} | 合约 | 杠杆{lev}x | {mt}")
+        logger.info(f"实盘交易 | 合约 | 杠杆{lev}x | {mt}")
         logger.info(f"运行模式: {self._run_mode.upper()}")
         self._running    = True
         STATE["running"] = True
@@ -332,6 +335,12 @@ class TradingBot:
                     f"tip={signal.spike_tip:.6f} entry={signal.entry_price:.6f} "
                     f"tp={signal.take_profit:.6f} sl={signal.stop_loss:.6f} "
                     f"({signal.reason})")
+
+        # 暂停检查
+        if STATE.get("trading_paused", False):
+            STATE["signals_blocked"] = STATE.get("signals_blocked", 0) + 1
+            logger.info(f"[TICK] {symbol} 交易已暂停，信号被忽略")
+            return
 
         # 风控检查
         can_trade, reason = self.rm.can_trade()

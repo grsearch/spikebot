@@ -38,14 +38,9 @@ nano config.py
 
 ## 启动
 
-### 空跑测试（推荐先跑2小时）
+### 启动（实盘）
 ```bash
-nohup python3 main.py --dry-run > logs/stdout.log 2>&1 &
-```
-
-### 实盘
-```bash
-nohup python3 main.py --live > logs/stdout.log 2>&1 &
+nohup python3 main.py > logs/stdout.log 2>&1 &
 ```
 
 ### 停止
@@ -57,8 +52,10 @@ pkill -f "python3 main.py"
 ```bash
 pkill -f "python3 main.py"
 sleep 2
-nohup python3 main.py --dry-run > logs/stdout.log 2>&1 &
+nohup python3 main.py > logs/stdout.log 2>&1 &
 ```
+
+**⚠️ 注意：没有空跑模式，启动即实盘交易。务必先在 config.py 里把 ORDER_USDT 设置小一些（如 20）测试，确认稳定后再加大。**
 
 ## Dashboard 访问（localtunnel 方案）
 
@@ -159,3 +156,26 @@ A: 正常，会自动重连（log 里有 "WS连接..." 日志）
 ## 联系方式
 
 部署或运行问题日志发回来查看。
+
+## 更新记录
+
+### 2026-04-19 参数优化（手续费优化版）
+
+**问题：** 第一次测试 208 笔交易，手续费 41.5U，吃掉所有利润。
+
+**根因：** 交易频率过高，每笔只赚 0.2-0.5U，扣手续费后几乎打平。
+
+**调整：**
+| 参数 | 旧值 | 新值 | 效果 |
+|------|------|------|------|
+| SPIKE_VS_ATR | 2.5 | 4.0 | 严格筛选，只抓极端插针 |
+| TICK_MIN_SPIKE_PCT | 0.2% | 0.6% | 最小振幅提高 3 倍 |
+| TICK_TP_RATIO | 0.40 | 0.70 | 吃更多反弹，提高R:R |
+| TICK_SL_RATIO | 0.25 | 0.12 | 更紧止损 |
+| TICK_COOLDOWN_MS | 3s | 10s | 同币冷却变长 |
+| MIN_RR | 1.0 | 2.0 | 必须大盈利才入场 |
+| AUTO_MAX_SYMBOLS | 6 | 4 | 减少监控币种 |
+
+**预期：** 每日 10-30 笔（从 400+笔大幅下降），胜率 55%+，净利润为正。
+
+**Dashboard 新增 TICK 参数区，可热更新调试。**
