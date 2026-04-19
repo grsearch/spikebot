@@ -55,7 +55,7 @@ AUTO_REFRESH_SEC     = 900        # 15分钟重新筛选
 #   对于下插针K线 body_ratio = 1 - recovery
 #   即实体占针比例 和 回归比例 是同一个量的两种表达
 #   所以只需控制 recovery 即可（旧版的 SPIKE_RATIO 被移除）
-SPIKE_VS_ATR = 3.0    # 针长 / ATR(20) >= 3.0（严筛但保留频率）
+SPIKE_VS_ATR = 2.0    # 针长 / ATR(14) >= 2.0（放宽门槛，增加信号频率）
 ATR_PERIOD   = 14
 MIN_SPIKE_PIPS = 0.00005  # 当前未使用（SPIKE_VS_ATR已足够过滤）
 SPIKE_RATIO  = 2.5    # 已弃用（保留供回测兼容）
@@ -72,8 +72,8 @@ SPIKE_RATIO  = 2.5    # 已弃用（保留供回测兼容）
 #   == 1.0 时：已完全回到针根，没有利润空间了
 #   == 0.70：还有30%空间留给止盈
 #
-MIN_RECOVERY = 0.30   # 1m K线已有价格确认，回归30%以上才入场
-MAX_RECOVERY = 0.50   # 1m K线给更多回归空间
+MIN_RECOVERY = 0.20   # 回归20%即可入场，更多信号
+MAX_RECOVERY = 0.65   # 放宽到65%，显著增加信号数量
                       # 关键推导:
                       #   recovery=25% → R:R≈2.1
                       #   recovery=30% → R:R≈1.7
@@ -92,8 +92,8 @@ MAX_RECOVERY = 0.50   # 1m K线给更多回归空间
 TP_RATIO     = 1.3    # 止盈目标（仅在TRAILING未激活时生效，作为兜底）
                       # 1.3=超过针根30%，给TRAILING更多发挥空间
 SL_RATIO     = 0.10   # 止损基础比例：针尖 - 针长 × 10%
-SL_ATR_MULT  = 0.5    # 止损ATR倍数：针尖 - ATR × 0.5（两者取大）
-MIN_RR       = 1.5    # R:R>=1.5（覆盖手续费同时保留信号数）
+SL_ATR_MULT  = 0.3    # 止损ATR倍数收紧，提升R:R，让更多信号通过MIN_RR筛选
+MIN_RR       = 1.2    # R:R>=1.2，平衡信号数量和质量
                         # 胜率50% + R:R=1.5 → 期望值为正
                         # 胜率45% + R:R=2.0 → 勉强覆盖手续费
                         # 胜率40% + R:R=2.5 → 需要非常严格的信号质量
@@ -120,7 +120,7 @@ BE_ACTIVATE_PCT    = 0.50
 # 在明显趋势市场中关闭逆势信号
 # True: MA20在MA99下方0.3%以上时，只允许SELL信号（不做BUY抄底）
 #        MA20在MA99上方0.3%以上时，只允许BUY信号（不做SELL做空）
-MARKET_FILTER      = True
+MARKET_FILTER      = True   # 下跌趋势中屏蔽BUY，上涨趋势中屏蔽SELL
 
 # ── 趋势过滤 ──────────────────────────────────────────────────
 MA_PERIOD    = 99
